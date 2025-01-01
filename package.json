@@ -1,0 +1,33 @@
+{
+    "name": "w2d",
+    "version": "1.0.0",
+    "description": "2D Webgl Engine",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "format": "prettier --ignore-path .gitignore --write \"**/*.(js|ts|json)\"",
+        "build": "esbuild src/App.ts --bundle --outfile=lib/index.js --loader:.html=text",
+        "serve": "node build/serve.mjs"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "@eslint/js": "^9.17.0",
+        "@types/gl-matrix": "^2.4.5",
+        "@types/webgl-ext": "^0.0.37",
+        "@typescript-eslint/eslint-plugin": "^8.18.1",
+        "@typescript-eslint/parser": "^8.18.1",
+        "esbuild": "0.24.0",
+        "eslint": "^9.17.0",
+        "globals": "^15.14.0",
+        "prettier": "^3.4.2",
+        "shelljs": "^0.8.5",
+        "typescript": "^5.7.2",
+        "typescript-eslint": "^8.18.1"
+    },
+    "dependencies": {
+        "bitecs": "^0.3.40",
+        "gl-matrix": "^3.4.3"
+    }
+}
