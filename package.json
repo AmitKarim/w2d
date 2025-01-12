@@ -28,6 +28,7 @@
     },
     "dependencies": {
         "bitecs": "^0.3.40",
-        "gl-matrix": "^3.4.3"
+        "gl-matrix": "^3.4.3",
+        "polyline-normals": "^2.0.2"
     }
 }
