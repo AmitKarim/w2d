@@ -1,10 +1,8 @@
 import { vec2 } from 'gl-matrix'
-import {
-    createPositionComponent,
-    PositionComponent,
-} from './components/PositionComponent'
 import { RenderData } from './systems/Renderer'
 import { createPlayerWorldData, PlayerData } from './systems/PlayerController'
+import { ComponentType, defineComponent, Types } from 'bitecs'
+import { DiamondSquareComponent } from './components/EnemyComponent'
 
 export const MaxView = 500
 
@@ -28,7 +26,20 @@ export type Screen = {
 
 export type World = {
     components: {
-        Position: PositionComponent
+        Position: ComponentType<{
+            pos: ['f32', 3]
+            vel: ['f32', 3]
+            angle: 'f32'
+            angularVelocity: 'f32'
+        }>
+        Color: ComponentType<{ color: ['f32', 3] }>
+        Shapes: {
+            Diamond: ComponentType<{ frame: 'i16' }>
+            CrossedDiamond: ComponentType<{ frame: 'i16' }>
+        }
+        Enemies: {
+            DiamondSquare: DiamondSquareComponent
+        }
     }
     time: TimeData
     render: RenderData
@@ -43,7 +54,24 @@ export function createWorldData(
 ): World {
     return {
         components: {
-            Position: createPositionComponent(),
+            Position: defineComponent({
+                pos: [Types.f32, 3],
+                vel: [Types.f32, 3],
+                angle: Types.f32,
+                angularVelocity: Types.f32,
+            }),
+            Color: defineComponent({ color: [Types.f32, 3] }),
+            Shapes: {
+                Diamond: defineComponent({ frame: Types.i16 }),
+                CrossedDiamond: defineComponent({ frame: Types.i16 }),
+            },
+            Enemies: {
+                DiamondSquare: defineComponent({
+                    spawn_time: Types.f32,
+                    health: Types.f32,
+                    shapes: [Types.eid, 4],
+                }),
+            },
         },
         time: createTimeData(),
         render: {

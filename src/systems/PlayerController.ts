@@ -26,9 +26,9 @@ export function createPlayerController(
                     (world.screen.height / world.screen.width) *
                     MaxView) /
                 halfHeight
-            console.log(
-                `x (orig): ${e.x} y(orig): ${e.y} x: ${world.player.mouseX} y: ${world.player.mouseY}`
-            )
+            // console.log(
+            //     `x (orig): ${e.x} y(orig): ${e.y} x: ${world.player.mouseX} y: ${world.player.mouseY}`
+            // )
         },
         false
     )
@@ -44,7 +44,7 @@ export function createPlayerController(
             playerDampingCoefficient,
             world.time.delta
         )
-        world.components.Position.xpos[player] = playerPosition[0]
-        world.components.Position.ypos[player] = playerPosition[1]
+        world.components.Position.pos[player][0] = playerPosition[0]
+        world.components.Position.pos[player][1] = playerPosition[1]
     }
 }

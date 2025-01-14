@@ -1,10 +1,10 @@
-import { createWorld, addEntity } from 'bitecs'
+import { createWorld, addEntity, addComponent } from 'bitecs'
 import { createWorldData } from './World'
-import { createPositionUpdateSystem } from './systems/PositionUpdateSystem'
 import { updateTime } from './systems/TimeSystem'
-import { addPositionComponent } from './components/PositionComponent'
 import { createRenderFunc } from './systems/Renderer'
 import { createPlayerController } from './systems/PlayerController'
+import { createEnemyShapeUpdater } from './systems/UpdateEnemyShapes'
+import { spawnDiamondSquare } from './components/EnemyComponent'
 
 async function main() {
     let canvas = document.getElementById('canvas') as HTMLCanvasElement
@@ -19,15 +19,25 @@ async function main() {
     )
 
     const player = addEntity(world)
-    addPositionComponent(player, world)
+    addComponent(world, world.components.Position, player)
 
-    const updateEntityPositions = createPositionUpdateSystem(world)
+    spawnDiamondSquare(
+        {
+            pos: [32, 12],
+            angle: 0,
+            health: 100,
+            color: [255, 0, 0],
+        },
+        world
+    )
+
     const renderScene = await createRenderFunc(world, player)
     const updatePlayer = createPlayerController(world, player, canvas)
+    const updateEnemies = createEnemyShapeUpdater(world, player)
     const update = () => {
         updateTime(world)
+        updateEnemies()
         updatePlayer()
-        updateEntityPositions(world)
         renderScene()
         requestAnimationFrame(update)
     }

@@ -2,10 +2,12 @@ import { MaxView, World } from '../World'
 import { vec2, mat3 } from 'gl-matrix'
 import { createLineShader } from '../engine/LineShader'
 import {
+    EnemyTypes,
     EntityGeometry,
     EntityType,
     EntityTypes,
 } from '../engine/EntityGeometry'
+import { defineQuery, Query } from 'bitecs'
 
 export type RenderData = {
     gl: WebGL2RenderingContext
@@ -54,7 +56,7 @@ export async function createRenderFunc(
                 indexCount: geometry.indices.length,
             }
 
-            const startIdx = vIdx
+            const startIdx = vIdx / 5
             for (let i = 0; i < geometry.points.length; ++i) {
                 arrayData[vIdx] = geometry.points[i][0]
                 arrayData[vIdx + 1] = geometry.points[i][1]
@@ -69,7 +71,7 @@ export async function createRenderFunc(
             }
         }
         gl.bindBuffer(gl.ARRAY_BUFFER, shipGeometry)
-        gl.bufferData(gl.ARRAY_BUFFER, arrayData, gl.STATIC_DRAW, 0, vIdx)
+        gl.bufferData(gl.ARRAY_BUFFER, arrayData, gl.STATIC_DRAW, 0)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipIndexBuffer)
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexData, gl.STATIC_DRAW)
     }
@@ -112,7 +114,7 @@ export async function createRenderFunc(
             gl.TRIANGLES,
             offset.indexCount,
             gl.UNSIGNED_SHORT,
-            offset.indexStart,
+            offset.indexStart * 2,
             instanceCount
         )
     }
@@ -130,10 +132,10 @@ export async function createRenderFunc(
         0
     )
     gl.vertexAttribDivisor(lineShader.attributes.aColor, 1)
-    const setColorData = (color: number[], idx: number) => {
-        colorData[idx * 3] = color[0]
-        colorData[idx * 3 + 1] = color[1]
-        colorData[idx * 3 + 2] = color[2]
+    const setColorData = (r: number, g: number, b: number, idx: number) => {
+        colorData[idx * 3] = r
+        colorData[idx * 3 + 1] = g
+        colorData[idx * 3 + 2] = b
     }
     const bufferColorData = (entityCount: number) => {
         gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
@@ -166,6 +168,12 @@ export async function createRenderFunc(
         transformData[idx * 9 + 7] = transform[7]
         transformData[idx * 9 + 8] = transform[8]
     }
+    const toMat3 = (pos: vec2, angle: number, mat: mat3) => {
+        mat3.fromTranslation(mat, pos)
+        mat3.rotate(mat, mat, angle)
+        return mat
+    }
+
     const bufferTransformData = (entityCount: number) => {
         gl.bindBuffer(gl.ARRAY_BUFFER, transformBuffer)
         gl.bufferData(
@@ -177,6 +185,54 @@ export async function createRenderFunc(
         )
     }
 
+    const shapeHelpers: Record<
+        Exclude<EntityType, 'player'>,
+        {
+            query: Query<World>
+            component: typeof world.components.Shapes.Diamond
+        }
+    > = {
+        crossed_diamond: {
+            query: defineQuery([
+                world.components.Shapes.CrossedDiamond,
+                world.components.Color,
+            ]),
+            component: world.components.Shapes.CrossedDiamond,
+        },
+        diamond: {
+            query: defineQuery([
+                world.components.Shapes.Diamond,
+                world.components.Color,
+            ]),
+            component: world.components.Shapes.Diamond,
+        },
+    }
+
+    const drawShapes = (type: Exclude<EntityType, 'player'>) => {
+        const { query } = shapeHelpers[type]
+        const entities = query(world)
+        const mat = mat3.create()
+        for (let i = 0; i < entities.length; ++i) {
+            setTransformData(
+                toMat3(
+                    world.components.Position.pos[entities[i]],
+                    world.components.Position.angle[entities[i]],
+                    mat
+                ),
+                i
+            )
+            setColorData(
+                world.components.Color.color[entities[i]][0],
+                world.components.Color.color[entities[i]][1],
+                world.components.Color.color[entities[i]][2],
+                i
+            )
+        }
+        bufferTransformData(entities.length)
+        bufferColorData(entities.length)
+        drawGeometryInstanced(type, entities.length)
+    }
+
     return () => {
         const { gl } = world.render
         gl.clearColor(0.0, 0.0, 0.0, 1.0)
@@ -184,18 +240,13 @@ export async function createRenderFunc(
 
         gl.useProgram(lineShader.program)
 
-        const entityPos = vec2.create()
-
         const playerMat = mat3.create()
-        entityPos[0] = world.components.Position.xpos[player]
-        entityPos[1] = world.components.Position.ypos[player]
-        mat3.fromTranslation(playerMat, entityPos)
-        mat3.rotate(
-            playerMat,
-            playerMat,
-            world.components.Position.angle[player]
+        toMat3(
+            world.components.Position.pos[player],
+            world.components.Position.angle[player],
+            playerMat
         )
-        setColorData([255, 255, 0], 0)
+        setColorData(255, 255, 0, 0)
         setTransformData(playerMat, 0)
         gl.uniform1f(lineShader.uniforms.halfThickness, 0.5)
         gl.uniform2f(
@@ -206,6 +257,10 @@ export async function createRenderFunc(
         bufferColorData(1)
         bufferTransformData(1)
         drawGeometryInstanced('player', 1)
+
+        for (const key of EnemyTypes) {
+            drawShapes(key)
+        }
         gl.flush()
     }
 }

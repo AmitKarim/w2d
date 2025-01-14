@@ -1,5 +1,6 @@
 import ComputeNormals from 'polyline-normals'
 
+export const EnemyTypes = ['diamond', 'crossed_diamond'] as const
 export const EntityTypes = ['player', 'diamond', 'crossed_diamond'] as const
 export type EntityType = (typeof EntityTypes)[number]
 
@@ -135,6 +136,6 @@ function computeGeometry(entries: Line[], scale: number): EntityGeometry {
 
 export const EntityGeometry: Record<EntityType, EntityGeometry> = {
     player: computeGeometry(entities['player'], 5),
-    diamond: computeGeometry(entities['diamond'], 10),
+    diamond: computeGeometry(entities['diamond'], 3),
     crossed_diamond: computeGeometry(entities['crossed_diamond'], 10),
 }
