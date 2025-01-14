@@ -1,4 +1,4 @@
-import { createWorld, addEntity, addComponent } from 'bitecs'
+import { createWorld, addEntity } from 'bitecs'
 import { createWorldData } from './World'
 import { createPositionUpdateSystem } from './systems/PositionUpdateSystem'
 import { updateTime } from './systems/TimeSystem'
@@ -20,9 +20,6 @@ async function main() {
 
     const player = addEntity(world)
     addPositionComponent(player, world)
-    addComponent(world, world.components.Sprite, player)
-    world.components.Sprite.width[player] = 0.1
-    world.components.Sprite.height[player] = 0.1
 
     const updateEntityPositions = createPositionUpdateSystem(world)
     const renderScene = await createRenderFunc(world, player)

@@ -3,10 +3,6 @@ import {
     createPositionComponent,
     PositionComponent,
 } from './components/PositionComponent'
-import {
-    createSpriteComponent,
-    SpriteComponent,
-} from './components/SpriteComponent'
 import { RenderData } from './systems/Renderer'
 import { createPlayerWorldData, PlayerData } from './systems/PlayerController'
 
@@ -33,7 +29,6 @@ export type Screen = {
 export type World = {
     components: {
         Position: PositionComponent
-        Sprite: SpriteComponent
     }
     time: TimeData
     render: RenderData
@@ -49,7 +44,6 @@ export function createWorldData(
     return {
         components: {
             Position: createPositionComponent(),
-            Sprite: createSpriteComponent(),
         },
         time: createTimeData(),
         render: {
