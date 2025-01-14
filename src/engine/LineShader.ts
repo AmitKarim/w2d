@@ -3,6 +3,7 @@ import { createShader } from './Shader'
 const VertexShaderSrc = `#version 300 es
 
 uniform float halfThickness;
+uniform vec2 screenSize;
 in vec2 aPos;
 in vec2 aNormal;
 in float aMiter;
@@ -13,7 +14,7 @@ out vec3 vColor;
 void main() {
     vColor = aColor;
     vec2 pos = aPos + (aNormal * halfThickness * aMiter); 
-    gl_Position = vec4(aTransform * vec3(pos, 1.0), 1.0);
+    gl_Position = vec4(aTransform * vec3(pos, 1.0) * vec3(screenSize, 1.0), 1.0);
 }
 `
 
@@ -32,7 +33,7 @@ export function createLineShader(gl: WebGL2RenderingContext) {
         gl,
         VertexShaderSrc,
         FragmentShaderSrc,
-        ['halfThickness'],
+        ['halfThickness', 'screenSize'],
         ['aPos', 'aNormal', 'aMiter', 'aColor', 'aTransform']
     )
 }

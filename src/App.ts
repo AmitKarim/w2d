@@ -4,6 +4,7 @@ import { createPositionUpdateSystem } from './systems/PositionUpdateSystem'
 import { updateTime } from './systems/TimeSystem'
 import { addPositionComponent } from './components/PositionComponent'
 import { createRenderFunc } from './systems/Renderer'
+import { createPlayerController } from './systems/PlayerController'
 
 async function main() {
     let canvas = document.getElementById('canvas') as HTMLCanvasElement
@@ -19,15 +20,16 @@ async function main() {
 
     const player = addEntity(world)
     addPositionComponent(player, world)
-    addComponent(world, world.components.Player, player)
     addComponent(world, world.components.Sprite, player)
     world.components.Sprite.width[player] = 0.1
     world.components.Sprite.height[player] = 0.1
 
     const updateEntityPositions = createPositionUpdateSystem(world)
-    const renderScene = await createRenderFunc(world)
+    const renderScene = await createRenderFunc(world, player)
+    const updatePlayer = createPlayerController(world, player, canvas)
     const update = () => {
         updateTime(world)
+        updatePlayer()
         updateEntityPositions(world)
         renderScene()
         requestAnimationFrame(update)

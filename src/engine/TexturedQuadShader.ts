@@ -1,4 +1,4 @@
-import { mat2, mat2d, vec2 } from 'gl-matrix'
+import { mat2d, vec2 } from 'gl-matrix'
 import { createShader } from './Shader'
 import { Texture } from './TextureManager'
 

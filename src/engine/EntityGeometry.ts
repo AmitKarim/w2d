@@ -9,8 +9,14 @@ type Line = {
     closed: boolean
 }
 
+function scalePoint(p: Point, scale: number): Point {
+    p[0] *= scale
+    p[1] *= scale
+    return p
+}
+
 const entities: Record<EntityType, Line[]> = {
-    player: [
+    crossed_diamond: [
         {
             points: [
                 [0, -0.5],
@@ -46,7 +52,7 @@ const entities: Record<EntityType, Line[]> = {
             closed: true,
         },
     ],
-    crossed_diamond: [
+    player: [
         {
             points: [
                 [0, -0.3],
@@ -76,20 +82,35 @@ function negate(p: Point): Point {
     return [-p[0], -p[1]]
 }
 
-function computeGeometry(entries: Line[]): EntityGeometry {
+function computeGeometry(entries: Line[], scale: number): EntityGeometry {
     const points: Point[] = []
     const normals: Point[] = []
     const miters: number[] = []
     const indices: number[] = []
+    const center: Point = [0, 0]
+    let numPoints = 0
+    for (const line of entries) {
+        numPoints += line.points.length
+        for (let i = 0; i < line.points.length; ++i) {
+            center[0] += line.points[i][0]
+            center[1] += line.points[i][1]
+        }
+    }
+    center[0] /= numPoints
+    center[1] /= numPoints
     for (const line of entries) {
         const normalData = ComputeNormals(line.points, line.closed)
         const curPointOffset = points.length
         for (let i = 0; i < line.points.length; ++i) {
-            points.push(line.points[i])
+            points.push(scalePoint(line.points[i], scale))
+            points[points.length - 1][0] -= center[0]
+            points[points.length - 1][1] -= center[1]
             normals.push(normalData[i][0])
             miters.push(normalData[i][1])
 
-            points.push(line.points[i])
+            points.push(scalePoint(line.points[i], scale))
+            points[points.length - 1][0] -= center[0]
+            points[points.length - 1][1] -= center[1]
             normals.push(negate(normalData[i][0]))
             miters.push(normalData[i][1])
 
@@ -113,7 +134,7 @@ function computeGeometry(entries: Line[]): EntityGeometry {
 }
 
 export const EntityGeometry: Record<EntityType, EntityGeometry> = {
-    player: computeGeometry(entities['player']),
-    diamond: computeGeometry(entities['diamond']),
-    crossed_diamond: computeGeometry(entities['crossed_diamond']),
+    player: computeGeometry(entities['player'], 5),
+    diamond: computeGeometry(entities['diamond'], 10),
+    crossed_diamond: computeGeometry(entities['crossed_diamond'], 10),
 }

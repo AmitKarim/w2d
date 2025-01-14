@@ -1,5 +1,4 @@
 import { vec2 } from 'gl-matrix'
-import { PlayerComponent } from './components/PlayerComponent'
 import {
     createPositionComponent,
     PositionComponent,
@@ -9,6 +8,9 @@ import {
     SpriteComponent,
 } from './components/SpriteComponent'
 import { RenderData } from './systems/Renderer'
+import { createPlayerWorldData, PlayerData } from './systems/PlayerController'
+
+export const MaxView = 500
 
 type TimeData = {
     delta: number
@@ -32,11 +34,11 @@ export type World = {
     components: {
         Position: PositionComponent
         Sprite: SpriteComponent
-        Player: PlayerComponent
     }
     time: TimeData
     render: RenderData
     screen: Screen
+    player: PlayerData
 }
 
 export function createWorldData(
@@ -48,7 +50,6 @@ export function createWorldData(
         components: {
             Position: createPositionComponent(),
             Sprite: createSpriteComponent(),
-            Player: {},
         },
         time: createTimeData(),
         render: {
@@ -59,5 +60,6 @@ export function createWorldData(
             width,
             height,
         },
+        player: createPlayerWorldData(),
     }
 }

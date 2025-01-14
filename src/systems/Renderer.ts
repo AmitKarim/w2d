@@ -1,5 +1,4 @@
-import { defineQuery } from 'bitecs'
-import { World } from '../World'
+import { MaxView, World } from '../World'
 import { vec2, mat3 } from 'gl-matrix'
 import { createLineShader } from '../engine/LineShader'
 import {
@@ -20,9 +19,10 @@ export type GeometryBufferOffset = {
 
 const MaxEntitiesPerType = 256
 
-export async function createRenderFunc(world: World): Promise<() => void> {
-    const PlayerEntitiesQuery = defineQuery([world.components.Player])
-
+export async function createRenderFunc(
+    world: World,
+    player: number
+): Promise<() => void> {
     const { gl } = world.render
     const lineShader = createLineShader(gl)
 
@@ -183,30 +183,29 @@ export async function createRenderFunc(world: World): Promise<() => void> {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
         gl.useProgram(lineShader.program)
-        gl.lineWidth(15)
 
-        const Players = PlayerEntitiesQuery(world)
         const entityPos = vec2.create()
 
         const playerMat = mat3.create()
-        let idx = 0
-        for (const Player of Players) {
-            entityPos[0] = world.components.Position.xpos[Player]
-            entityPos[1] = world.components.Position.ypos[Player]
-            mat3.fromTranslation(playerMat, entityPos)
-            mat3.rotate(
-                playerMat,
-                playerMat,
-                world.components.Position.angle[Player]
-            )
-            setColorData([255, 255, 0], idx)
-            setTransformData(playerMat, idx)
-            gl.uniform1f(lineShader.uniforms.halfThickness, 0.01)
-            ++idx
-        }
-        bufferColorData(idx)
-        bufferTransformData(idx)
-        drawGeometryInstanced('player', idx)
+        entityPos[0] = world.components.Position.xpos[player]
+        entityPos[1] = world.components.Position.ypos[player]
+        mat3.fromTranslation(playerMat, entityPos)
+        mat3.rotate(
+            playerMat,
+            playerMat,
+            world.components.Position.angle[player]
+        )
+        setColorData([255, 255, 0], 0)
+        setTransformData(playerMat, 0)
+        gl.uniform1f(lineShader.uniforms.halfThickness, 0.5)
+        gl.uniform2f(
+            lineShader.uniforms.screenSize,
+            1.0 / MaxView,
+            world.screen.width / world.screen.height / MaxView
+        )
+        bufferColorData(1)
+        bufferTransformData(1)
+        drawGeometryInstanced('player', 1)
         gl.flush()
     }
 }
