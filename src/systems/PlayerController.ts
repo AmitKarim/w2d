@@ -4,10 +4,23 @@ import { MaxView, World } from '../World'
 export type PlayerData = {
     mouseX: number
     mouseY: number
+    controls: {
+        weapon_type: 'bullets'
+        firing_rate: number
+        projectile_speed: number
+    }
 }
 
 export function createPlayerWorldData(): PlayerData {
-    return { mouseX: 0, mouseY: 0 }
+    return {
+        mouseX: 0,
+        mouseY: 0,
+        controls: {
+            weapon_type: 'bullets',
+            firing_rate: 0.3,
+            projectile_speed: 100.0,
+        },
+    }
 }
 
 export function createPlayerController(
@@ -33,7 +46,7 @@ export function createPlayerController(
         false
     )
 
-    const playerDampingCoefficient = createDampingCoefficient(400)
+    const playerDampingCoefficient = createDampingCoefficient(0.4)
     let playerVelocity: [number, number] = [0, 0]
     let playerPosition: [number, number] = [0, 0]
     return () => {

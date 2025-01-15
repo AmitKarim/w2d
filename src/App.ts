@@ -5,6 +5,7 @@ import { createRenderFunc } from './systems/Renderer'
 import { createPlayerController } from './systems/PlayerController'
 import { createEnemyShapeUpdater } from './systems/UpdateEnemyShapes'
 import { spawnDiamondSquare } from './components/EnemyComponent'
+import { createBulletProcessor } from './systems/ProjectileSystem'
 
 async function main() {
     let canvas = document.getElementById('canvas') as HTMLCanvasElement
@@ -34,10 +35,12 @@ async function main() {
     const renderScene = await createRenderFunc(world, player)
     const updatePlayer = createPlayerController(world, player, canvas)
     const updateEnemies = createEnemyShapeUpdater(world, player)
+    const updateBullets = createBulletProcessor(world, player)
     const update = () => {
         updateTime(world)
         updateEnemies()
         updatePlayer()
+        updateBullets()
         renderScene()
         requestAnimationFrame(update)
     }
