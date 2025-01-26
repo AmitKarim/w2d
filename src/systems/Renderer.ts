@@ -1,12 +1,5 @@
 import { MaxView, World } from '../World'
 import { vec2, mat3 } from 'gl-matrix'
-import { createLineShader } from '../engine/LineShader'
-import {
-    EnemyTypes,
-    EntityGeometry,
-    EntityType,
-    EntityTypes,
-} from '../engine/EntityGeometry'
 import { defineQuery, Query } from 'bitecs'
 import {
     Bullet_Length,
@@ -16,6 +9,8 @@ import {
     MAX_BULLETS,
 } from './ProjectileSystem'
 import { createBulletShader } from '../engine/BulletShader'
+import { ShapeGeometry, Shapes, ShapeType } from '../engine/Shapes'
+import { createFeatheredLineShader } from '../engine/FeatheredLineShader'
 
 export type RenderData = {
     gl: WebGL2RenderingContext
@@ -111,11 +106,11 @@ export async function createRenderFunc(
 ): Promise<() => void> {
     const { gl } = world.render
     gl.disable(gl.CULL_FACE)
-    const lineShader = createLineShader(gl)
+    const lineShader = createFeatheredLineShader(gl)
 
     const bulletRenderPass = createBulletRenderPass(world, gl)
 
-    const entityGeometryOffsets: Record<EntityType, GeometryBufferOffset> =
+    const shapeGeometryOffsets: Record<ShapeType, GeometryBufferOffset> =
         {} as any
 
     const shipGeometry = gl.createBuffer()
@@ -123,11 +118,9 @@ export async function createRenderFunc(
     {
         let totalFloats = 0
         let totalIndices = 0
-        for (const entityType of EntityTypes) {
-            const entry = EntityGeometry[entityType]
-            totalFloats += entry.points.length * 2
-            totalFloats += entry.normals.length * 2
-            totalFloats += entry.miters.length
+        for (const s of Shapes) {
+            const entry = ShapeGeometry[s]
+            totalFloats += entry.points.length
             totalIndices += entry.indices.length
         }
         const arrayData = new Float32Array(totalFloats)
@@ -135,27 +128,20 @@ export async function createRenderFunc(
 
         let vIdx = 0
         let iIdx = 0
-        for (const entityType of EntityTypes) {
-            const geometry = EntityGeometry[entityType]
+        for (const s of Shapes) {
+            const geometry = ShapeGeometry[s]
+            arrayData.set(geometry.points, vIdx)
+            indexData.set(
+                geometry.indices.map((x) => x + vIdx / 3),
+                iIdx
+            )
 
-            entityGeometryOffsets[entityType] = {
+            shapeGeometryOffsets[s] = {
                 indexStart: iIdx,
                 indexCount: geometry.indices.length,
             }
-
-            const startIdx = vIdx / 5
-            for (let i = 0; i < geometry.points.length; ++i) {
-                arrayData[vIdx] = geometry.points[i][0]
-                arrayData[vIdx + 1] = geometry.points[i][1]
-                arrayData[vIdx + 2] = geometry.normals[i][0]
-                arrayData[vIdx + 3] = geometry.normals[i][1]
-                arrayData[vIdx + 4] = geometry.miters[i]
-                vIdx += 5
-            }
-            for (const idx of geometry.indices.map((x) => x + startIdx)) {
-                indexData[iIdx] = idx
-                ++iIdx
-            }
+            vIdx += geometry.points.length
+            iIdx += geometry.indices.length
         }
         gl.bindBuffer(gl.ARRAY_BUFFER, shipGeometry)
         gl.bufferData(gl.ARRAY_BUFFER, arrayData, gl.STATIC_DRAW, 0)
@@ -163,7 +149,7 @@ export async function createRenderFunc(
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexData, gl.STATIC_DRAW)
     }
     const drawGeometryInstanced = (
-        geometryType: EntityType,
+        geometryType: ShapeType,
         instanceCount: number
     ) => {
         gl.bindBuffer(gl.ARRAY_BUFFER, shipGeometry)
@@ -173,30 +159,21 @@ export async function createRenderFunc(
             2,
             gl.FLOAT,
             false,
-            20,
+            12,
             0
         )
-        gl.enableVertexAttribArray(lineShader.attributes.aNormal)
+        gl.enableVertexAttribArray(lineShader.attributes.aAlpha)
         gl.vertexAttribPointer(
-            lineShader.attributes.aNormal,
-            2,
-            gl.FLOAT,
-            false,
-            20,
-            8
-        )
-        gl.enableVertexAttribArray(lineShader.attributes.aMiter)
-        gl.vertexAttribPointer(
-            lineShader.attributes.aMiter,
+            lineShader.attributes.aAlpha,
             1,
             gl.FLOAT,
             false,
-            20,
-            16
+            12,
+            8
         )
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipIndexBuffer)
 
-        const offset = entityGeometryOffsets[geometryType]
+        const offset = shapeGeometryOffsets[geometryType]
         gl.drawElementsInstanced(
             gl.TRIANGLES,
             offset.indexCount,
@@ -273,7 +250,7 @@ export async function createRenderFunc(
     }
 
     const shapeHelpers: Record<
-        Exclude<EntityType, 'player'>,
+        Exclude<ShapeType, 'player'>,
         {
             query: Query<World>
             component: typeof world.components.Shapes.Diamond
@@ -295,7 +272,7 @@ export async function createRenderFunc(
         },
     }
 
-    const drawShapes = (type: Exclude<EntityType, 'player'>) => {
+    const drawShapes = (type: Exclude<ShapeType, 'player'>) => {
         const { query } = shapeHelpers[type]
         const entities = query(world)
         const mat = mat3.create()
@@ -323,8 +300,8 @@ export async function createRenderFunc(
     return () => {
         const { gl } = world.render
         gl.clearColor(0.0, 0.0, 0.0, 1.0)
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
+        gl.clear(gl.COLOR_BUFFER_BIT)
+        gl.disable(gl.DEPTH_TEST)
         gl.useProgram(lineShader.program)
 
         const playerMat = mat3.create()
@@ -335,7 +312,6 @@ export async function createRenderFunc(
         )
         setColorData(255, 255, 0, 0)
         setTransformData(playerMat, 0)
-        gl.uniform1f(lineShader.uniforms.halfThickness, 0.5)
         gl.uniform2f(
             lineShader.uniforms.screenSize,
             1.0 / MaxView,
@@ -343,9 +319,15 @@ export async function createRenderFunc(
         )
         bufferColorData(1)
         bufferTransformData(1)
+        gl.enable(gl.BLEND)
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
         drawGeometryInstanced('player', 1)
 
-        for (const key of EnemyTypes) {
+        for (const key of Shapes) {
+            if (key == 'player') {
+                continue
+            }
             drawShapes(key)
         }
         bulletRenderPass()
