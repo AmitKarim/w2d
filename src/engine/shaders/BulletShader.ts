@@ -1,4 +1,4 @@
-import { createShader } from './Shader'
+import { createShader } from '../Shader'
 
 const VertexShaderSrc = `#version 300 es
 

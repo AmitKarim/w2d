@@ -1,3 +1,4 @@
+import { vec2 } from 'gl-matrix'
 import { Line, LineGeometry, Polygon, tesselateLines } from './EntityGeometry'
 
 export const Shapes = ['player', 'diamond', 'crossed_diamond'] as const
@@ -66,9 +67,12 @@ function scaleShape(shape: Shape, scale: number): Shape {
     }))
 }
 
-export const ShapeGeometry: Record<ShapeType, LineGeometry> = {
-    player: tesselateLines(scaleShape(shapes['player'], 30), 2.0, 1.0),
-    diamond: tesselateLines(scaleShape(shapes['diamond'], 50), 3.0, 1.0),
+export const ShapeGeometry: Record<
+    ShapeType,
+    { visual: LineGeometry; collision: vec2[][] }
+> = {
+    player: tesselateLines(scaleShape(shapes['player'], 300), 10.0, 2.0),
+    diamond: tesselateLines(scaleShape(shapes['diamond'], 300), 20.0, 1.0),
     crossed_diamond: tesselateLines(
         scaleShape(shapes['crossed_diamond'], 500),
         30,

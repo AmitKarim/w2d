@@ -1,4 +1,5 @@
 import { vec2 } from 'gl-matrix'
+import { decomposePolygon } from './PolygonDecomposition'
 // import ComputeNormals from 'polyline-normals'
 
 type Point = [number, number]
@@ -19,6 +20,14 @@ function midpoint(p1: Point, p2: Point): Point {
     return [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2]
 }
 
+type PartialTesselationResult = {
+    visual: {
+        points: Float32Array
+        indices: Uint16Array
+    }
+    collision: vec2[]
+}
+
 const tesselateStraightLine = (() => {
     const v0 = vec2.create()
     const n0 = vec2.create()
@@ -35,7 +44,7 @@ const tesselateStraightLine = (() => {
         line: [vec2, vec2],
         thickness: number,
         feather: number
-    ): LineGeometry => {
+    ): PartialTesselationResult => {
         vec2.subtract(v0, line[1], line[0])
         vec2.normalize(v0, v0)
         n0[0] = v0[1]
@@ -105,7 +114,15 @@ const tesselateStraightLine = (() => {
             0, 3, 1, 1, 3, 2, 0, 4, 7, 7, 0, 3, 3, 7, 6, 6, 2, 3, 6, 5, 1, 1, 2,
             6, 5, 4, 1, 1, 4, 0,
         ])
-        return { points, indices }
+        return {
+            visual: { points, indices },
+            collision: [
+                vec2.clone(a),
+                vec2.clone(b),
+                vec2.clone(c),
+                vec2.clone(d),
+            ],
+        }
     }
     return tesselate
 })()
@@ -168,7 +185,7 @@ const tesselateAnchor = (() => {
         anchor: Anchor,
         thickness: number,
         feather: number
-    ): LineGeometry => {
+    ): PartialTesselationResult => {
         const p0 = anchor.points[0]
         const p1 = anchor.points[1]
         const p2 = anchor.points[2]
@@ -429,7 +446,18 @@ const tesselateAnchor = (() => {
             indices[idx++] = 14 + arcSize - 1
         }
 
-        return { points, indices }
+        return {
+            visual: { points, indices },
+            collision: [
+                vec2.clone(b),
+                vec2.clone(d),
+                vec2.clone(e),
+                vec2.clone(f),
+                vec2.clone(g),
+                vec2.clone(c),
+                vec2.clone(a),
+            ],
+        }
     }
     return tesselate
 })()
@@ -438,11 +466,26 @@ export function tesselateLines(
     lines: (Line | Polygon)[],
     thickness: number,
     feather: number
-): LineGeometry {
-    const polyLines = lines.filter((x) => x.points.length > 2)
-    const straightLines = lines.filter((x) => x.points.length == 2)
-    const allAnchors: Anchor[] = polyLines
-        .map((line): Anchor[] => {
+): { visual: LineGeometry; collision: vec2[][] } {
+    const tesselatedLines = lines.map(
+        (line): { visual: LineGeometry[]; collision: vec2[][] } => {
+            if (!line.closed && line.points.length == 2) {
+                const result = tesselateStraightLine(
+                    line.points as [vec2, vec2],
+                    thickness,
+                    feather
+                )
+                return {
+                    visual: [
+                        {
+                            points: result.visual.points,
+                            indices: result.visual.indices,
+                        },
+                    ],
+                    collision: [result.collision],
+                }
+            }
+
             const midpoints: Point[] = []
             for (let i = 0; i < line.points.length - 1; ++i) {
                 midpoints.push(midpoint(line.points[i], line.points[i + 1]))
@@ -460,7 +503,6 @@ export function tesselateLines(
                 )
             }
             const anchors: Anchor[] = []
-
             for (let i = 0; i < line.points.length - 1; ++i) {
                 anchors.push({
                     points: [
@@ -483,25 +525,44 @@ export function tesselateLines(
                     end_cap: false,
                 })
             }
-            return anchors
-        })
-        .flat()
-    const lineEntries = allAnchors
-        .map((x) => tesselateAnchor(x, thickness, feather))
-        .concat(
-            straightLines.map((x) =>
-                tesselateStraightLine(
-                    x.points as [vec2, vec2],
-                    thickness,
-                    feather
-                )
+            const anchorTesselation = anchors.map((x) =>
+                tesselateAnchor(x, thickness, feather)
             )
-        )
-    const numVertices = lineEntries.reduce(
+            let collisionGeometry: vec2[]
+            if (line.closed) {
+                anchorTesselation.forEach((x) =>
+                    x.collision.splice(x.collision.length - 4, 4)
+                )
+                collisionGeometry = anchorTesselation
+                    .map((x) => x.collision)
+                    .reduce((prev, cur) => [...prev, ...cur], [])
+            } else {
+                collisionGeometry = anchorTesselation
+                    .map((x) => x.collision)
+                    .map((x) => [x.slice(0, 3), x.slice(3)])
+                    .reduce((prev, cur) => {
+                        return [
+                            [...prev[0], ...cur[0]],
+                            [...cur[1], ...prev[1]],
+                        ]
+                    }, [])
+                    .reduce((prev, cur) => {
+                        return [...prev, ...cur]
+                    }, [])
+            }
+            const visualGeometry = anchorTesselation.map((x) => x.visual)
+            return {
+                visual: visualGeometry,
+                collision: decomposePolygon(collisionGeometry),
+            }
+        }
+    )
+    const visuals = tesselatedLines.map((x) => x.visual).flat()
+    const numVertices = visuals.reduce(
         (prev, cur) => (prev += cur.points.length),
         0
     )
-    const numIndices = lineEntries.reduce(
+    const numIndices = visuals.reduce(
         (prev, cur) => (prev += cur.indices.length),
         0
     )
@@ -509,7 +570,7 @@ export function tesselateLines(
     const finalIndices = new Uint16Array(numIndices)
     let curVertexIndex = 0
     let curIndexIndex = 0
-    for (const line of lineEntries) {
+    for (const line of visuals) {
         finalGeometry.set(line.points, curVertexIndex)
         finalIndices.set(
             line.indices.map((x) => (x += curVertexIndex / 3)),
@@ -519,7 +580,10 @@ export function tesselateLines(
         curIndexIndex += line.indices.length
     }
     return {
-        points: finalGeometry,
-        indices: finalIndices,
+        visual: {
+            points: finalGeometry,
+            indices: finalIndices,
+        },
+        collision: tesselatedLines.map((x) => x.collision.flat(1)),
     }
 }

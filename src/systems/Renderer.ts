@@ -8,9 +8,10 @@ import {
     getBulletCount,
     MAX_BULLETS,
 } from './ProjectileSystem'
-import { createBulletShader } from '../engine/BulletShader'
+import { createBulletShader } from '../engine/shaders/BulletShader'
 import { ShapeGeometry, Shapes, ShapeType } from '../engine/Shapes'
-import { createFeatheredLineShader } from '../engine/FeatheredLineShader'
+import { createFeatheredLineShader } from '../engine/shaders/FeatheredLineShader'
+import { createDebugRenderer } from '../engine/Debug_LineDrawingSystem'
 
 export type RenderData = {
     gl: WebGL2RenderingContext
@@ -120,8 +121,8 @@ export async function createRenderFunc(
         let totalIndices = 0
         for (const s of Shapes) {
             const entry = ShapeGeometry[s]
-            totalFloats += entry.points.length
-            totalIndices += entry.indices.length
+            totalFloats += entry.visual.points.length
+            totalIndices += entry.visual.indices.length
         }
         const arrayData = new Float32Array(totalFloats)
         const indexData = new Uint16Array(totalIndices)
@@ -130,18 +131,18 @@ export async function createRenderFunc(
         let iIdx = 0
         for (const s of Shapes) {
             const geometry = ShapeGeometry[s]
-            arrayData.set(geometry.points, vIdx)
+            arrayData.set(geometry.visual.points, vIdx)
             indexData.set(
-                geometry.indices.map((x) => x + vIdx / 3),
+                geometry.visual.indices.map((x) => x + vIdx / 3),
                 iIdx
             )
 
             shapeGeometryOffsets[s] = {
                 indexStart: iIdx,
-                indexCount: geometry.indices.length,
+                indexCount: geometry.visual.indices.length,
             }
-            vIdx += geometry.points.length
-            iIdx += geometry.indices.length
+            vIdx += geometry.visual.points.length
+            iIdx += geometry.visual.indices.length
         }
         gl.bindBuffer(gl.ARRAY_BUFFER, shipGeometry)
         gl.bufferData(gl.ARRAY_BUFFER, arrayData, gl.STATIC_DRAW, 0)
@@ -297,6 +298,8 @@ export async function createRenderFunc(
         drawGeometryInstanced(type, entities.length)
     }
 
+    const Debug_LineRenderer = createDebugRenderer(gl)
+
     return () => {
         const { gl } = world.render
         gl.clearColor(0.0, 0.0, 0.0, 1.0)
@@ -331,6 +334,13 @@ export async function createRenderFunc(
             drawShapes(key)
         }
         bulletRenderPass()
+        Debug_LineRenderer(
+            world.render.cameraPos,
+            vec2.fromValues(
+                1.0 / MaxView,
+                world.screen.width / world.screen.height / MaxView
+            )
+        )
         gl.flush()
     }
 }

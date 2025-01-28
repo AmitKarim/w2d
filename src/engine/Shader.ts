@@ -50,7 +50,8 @@ export function createShader<
     for (const uniform of uniforms) {
         const location = gl.getUniformLocation(program, uniform)
         if (!location) {
-            throw Error(`Failed to find location of uniform ${uniform}`)
+            console.error(`Failed to find location of uniform ${uniform}`)
+            continue
         }
         uniformLocations[uniform] = location
     }
@@ -58,7 +59,8 @@ export function createShader<
     for (const attribute of attributes) {
         const location = gl.getAttribLocation(program, attribute)
         if (location < 0) {
-            throw Error(`Failed to find location of attribute ${attribute}`)
+            console.error(`Failed to find location of attribute ${attribute}`)
+            continue
         }
         attributeLocations[attribute] = location
     }

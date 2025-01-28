@@ -6,6 +6,7 @@ import { createPlayerController } from './systems/PlayerController'
 import { createEnemyShapeUpdater } from './systems/UpdateEnemyShapes'
 import { spawnDiamondSquare } from './components/EnemyComponent'
 import { createBulletProcessor } from './systems/ProjectileSystem'
+import { createCollisionSystem } from './systems/CollisionSystem'
 
 async function main() {
     let canvas = document.getElementById('canvas') as HTMLCanvasElement
@@ -36,11 +37,13 @@ async function main() {
     const updatePlayer = createPlayerController(world, player, canvas)
     const updateEnemies = createEnemyShapeUpdater(world, player)
     const updateBullets = createBulletProcessor(world, player)
+    const updateCollisions = createCollisionSystem(world, player)
     const update = () => {
         updateTime(world)
         updateEnemies()
         updatePlayer()
         updateBullets()
+        updateCollisions()
         renderScene()
         requestAnimationFrame(update)
     }
