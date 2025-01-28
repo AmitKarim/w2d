@@ -32,15 +32,15 @@ export function createCollisionSystem(world: World, player: number) {
     // }
 
     return () => {
-        // debugDrawShapes(
-        //     world.components.Position.pos[player],
-        //     world.components.Position.angle[player],
-        //     ShapeGeometry['player'].collision
-        // )
+        debugDrawShapes(
+            world.components.Position.pos[player],
+            world.components.Position.angle[player],
+            ShapeGeometry['player'].collision
+        )
         debugDrawShape(
             [0, 0],
             0,
-            [[0, 0], [0, 0.5], [0.5, 0.5], [0.5,  0]]
+            [[0, 0], [0, 100], [100, 100], [100, 0]]
         )
     }
 }
