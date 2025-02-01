@@ -5,6 +5,7 @@ import {
     Bullet_Length,
     Bullet_Normal,
     Bullet_Pos,
+    BulletThickness,
     getBulletCount,
     MAX_BULLETS,
 } from './ProjectileSystem'
@@ -24,7 +25,6 @@ export type GeometryBufferOffset = {
 }
 
 const MaxEntitiesPerType = 256
-const BulletThickness = 1
 
 function createBulletRenderPass(world: World, gl: WebGL2RenderingContext) {
     const bulletGeometryBuffer = gl.createBuffer()

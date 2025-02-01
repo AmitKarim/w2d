@@ -1,5 +1,6 @@
 import esbuild from 'esbuild';
 import shelljs from 'shelljs';
+import inlineWorkerPlugin from 'esbuild-plugin-inline-worker';
 
 async function startServer() {
   const ctx = await esbuild.context({
@@ -8,6 +9,7 @@ async function startServer() {
     outfile: 'lib/index.js', // output file location
     sourcemap: true, // enable source maps
     // other configurations
+    plugins: [inlineWorkerPlugin()],
   });
 
   shelljs.mkdir('lib')

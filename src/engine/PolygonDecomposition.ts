@@ -135,13 +135,8 @@ function findSignChange(polygon: vec2[]): number[] {
 
 function decomposePolygonInternal(
     polygon: vec2[],
-    depth: number,
     shortest: number
 ): vec2[][] | null {
-    console.log(`${depth}`, `\t`.repeat(depth), polygon)
-    if (depth > 10) {
-        console.log('overda')
-    }
     if (polygon.length < 3) {
         throw Error('bad')
     }
@@ -167,15 +162,10 @@ function decomposePolygonInternal(
             }
             const left = slicePolygon(polygon, v1, v2)
             const right = slicePolygon(polygon, v2, v1)
-            const leftPoints = decomposePolygonInternal(
-                left,
-                depth + 1,
-                shortest - 1
-            )
+            const leftPoints = decomposePolygonInternal(left, shortest - 1)
             if (leftPoints && leftPoints.length < shortest) {
                 const rightPoints = decomposePolygonInternal(
                     right,
-                    depth + 1,
                     shortest - leftPoints.length
                 )
                 if (rightPoints) {
@@ -195,7 +185,6 @@ export function decomposePolygon(polygon: vec2[]): vec2[][] {
     return (
         decomposePolygonInternal(
             removeCollinearPoints(removeIdenticalPoints(polygon)),
-            0,
             999999
         ) || [polygon]
     )

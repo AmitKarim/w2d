@@ -4,7 +4,6 @@ import { World } from '../World'
 
 export type DiamondSquareComponent = ComponentType<{
     spawn_time: 'f32'
-    health: 'f32'
     shapes: ['eid', 4]
 }>
 
@@ -22,6 +21,9 @@ export function spawnDiamondSquare(
     const DiamondSquare = world.components.Enemies.DiamondSquare
     addComponent(world, DiamondSquare, entityID)
 
+    addComponent(world, world.components.Health, entityID)
+    world.components.Health.health[entityID] = params.health
+
     const e1 = addEntity(world)
     const e2 = addEntity(world)
     const e3 = addEntity(world)
@@ -31,13 +33,23 @@ export function spawnDiamondSquare(
     DiamondSquare.shapes[entityID][1] = e2
     DiamondSquare.shapes[entityID][2] = e3
     DiamondSquare.shapes[entityID][3] = e4
-    DiamondSquare.health[entityID] = params.health
     DiamondSquare.spawn_time[entityID] = world.time.elapsed
 
-    addComponent(world, world.components.Shapes.Diamond, e1)
-    addComponent(world, world.components.Shapes.Diamond, e2)
-    addComponent(world, world.components.Shapes.Diamond, e3)
-    addComponent(world, world.components.Shapes.Diamond, e4)
+    const Diamond = world.components.Shapes.Diamond
+    const Parent = world.components.Parent
+    addComponent(world, Diamond, e1)
+    addComponent(world, Diamond, e2)
+    addComponent(world, Diamond, e3)
+    addComponent(world, Diamond, e4)
+
+    addComponent(world, Parent, e1)
+    addComponent(world, Parent, e2)
+    addComponent(world, Parent, e3)
+    addComponent(world, Parent, e4)
+    Parent.parent[e1] = entityID
+    Parent.parent[e2] = entityID
+    Parent.parent[e3] = entityID
+    Parent.parent[e4] = entityID
 
     addComponent(world, world.components.Color, e1)
     addComponent(world, world.components.Color, e2)

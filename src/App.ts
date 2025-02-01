@@ -38,16 +38,15 @@ async function main() {
     const updateEnemies = createEnemyShapeUpdater(world, player)
     const updateBullets = createBulletProcessor(world, player)
     const updateCollisions = createCollisionSystem(world, player)
-    const update = () => {
+    const update = async () => {
         updateTime(world)
-        updateEnemies()
         updatePlayer()
-        updateBullets()
+        await Promise.all([updateBullets(), updateEnemies()])
         updateCollisions()
         renderScene()
         requestAnimationFrame(update)
     }
-    update()
+    await update()
 }
 
 main()

@@ -1,15 +1,21 @@
 import { World } from '../World'
-import { ShapeGeometry } from '../engine/Shapes'
+import { ShapeGeometry, Shapes, ShapeType } from '../engine/Shapes'
 import { vec2, vec4 } from 'gl-matrix'
 import { Debug_DrawLine } from '../engine/Debug_LineDrawingSystem'
+import { defineQuery, Query } from 'bitecs'
+import { checkCollision } from '../engine/collision/SATCollision'
 
 // const MAX_POINTS = 50000
 // const Geometry = new Float32Array(MAX_POINTS)
 // const Entities = new Uint32Array(1000)
 
+function checkAABBCollision(a: [vec2, vec2], b: Float32Array, idx: number) {
+    const [min, max] = a
+    const [minX, minY, maxX, maxY] = b.subarray(idx * 4, idx * 4 + 4)
+    return min[0] < maxX && max[0] > minX && min[1] < maxY && max[1] > minY
+}
+
 const debugDrawShape = (() => {
-    // const blue = vec4.fromValues(0,0,1,1)
-    // const red = vec4.fromValues(1,0,0,1)
     return (pos: vec2, angle: number, shape: vec2[]) => {
         const a = vec2.create()
         const b = vec2.create()
@@ -19,58 +25,78 @@ const debugDrawShape = (() => {
             vec2.add(a, a, pos)
             vec2.add(b, b, pos)
             let color = vec4.fromValues(0, 1, 0, 1)
-            // if (i === 0) {
-            //     color = red
-            // } else if (i === shape.length-1) {
-            //     color = blue
-            // }
             Debug_DrawLine(a, b, color)
         }
-        // for (let i = 4; i < shape.length; ++i) {
-        //     for (let j = 2; j < shape.length - 3; ++j) {
-        //         const p0 = i
-        //         const p1 = (i + 2 + j) % shape.length
-        //         vec2.rotate(a, shape[p0], [0,0], angle)
-        //         vec2.rotate(b, shape[p1], [0, 0], angle)
-        //         vec2.add(a, a, pos)
-        //         vec2.add(b, b, pos)
-        //         const [visible, badIdx] = isVisible(shape, p0, p1)
-        //         const inside = isInside(shape, p0, p1)
-        //         // Debug_DrawLine(a, b, (inside && visible) ? blue : red)
-        //         // Debug_DrawLine(a, b, visible ? blue : red)
-        //         // if (!visible) {
-        //         //     const t1 = vec2.rotate(vec2.create(), shape[badIdx], [0,0], angle)
-        //         //     const t2 = vec2.rotate(vec2.create(), shape[(badIdx + 1) % shape.length], [0,0], angle)
-        //         //     vec2.add(t1, t1, pos)
-        //         //     vec2.add(t2, t2, pos)
-        //         //     Debug_DrawLine(a, b, visible ? blue : red)
-        //         //     Debug_DrawLine(t1, t2, red)
-        //         // }
-        //         // }
-        //         // }
-        //         break
-        //     }
-        //     break
-        // }
     }
 })()
 
 function debugDrawShapes(pos: vec2, angle: number, shapes: vec2[][]) {
-    // debugDrawShape(pos, angle, shapes[2])
     shapes.map((x) => debugDrawShape(pos, angle, x))
 }
 
+function computeAABB(shape: vec2[][]): [vec2, vec2] {
+    const min = vec2.create()
+    const max = vec2.create()
+    for (const part of shape) {
+        for (const point of part) {
+            vec2.min(min, min, point)
+            vec2.max(max, max, point)
+        }
+    }
+    return [min, max]
+}
+
 export function createCollisionSystem(world: World, player: number) {
-    // const shapeQueries: Record<EnemyType, Query<World>> = {
-    //     crossed_diamond: defineQuery([world.components.Shapes.CrossedDiamond]),
-    //     diamond: defineQuery([world.components.Shapes.Diamond]),
-    // }
+    const shapeQueries: Record<Exclude<ShapeType, 'player'>, Query<World>> = {
+        crossed_diamond: defineQuery([world.components.Shapes.CrossedDiamond]),
+        diamond: defineQuery([world.components.Shapes.Diamond]),
+    }
+
+    const a = vec2.create()
+    const zero = [0, 0] as const
+    const transformShape = (pos: vec2, angle: number, shape: vec2[][]) => {
+        return shape.map((x) =>
+            x.map((x) =>
+                vec2.clone(vec2.add(a, vec2.rotate(a, x, zero, angle), pos))
+            )
+        )
+    }
 
     return () => {
-        debugDrawShapes(
+        const playerShape: vec2[][] = transformShape(
             world.components.Position.pos[player],
             world.components.Position.angle[player],
             ShapeGeometry['player'].collision
         )
+
+        const playerAABB = computeAABB(playerShape)
+
+        const enemyShapes: vec2[][][] = []
+
+        for (const shape of Shapes) {
+            if (shape === 'player') {
+                continue
+            }
+            const entities = shapeQueries[shape](world)
+            for (const e of entities) {
+                enemyShapes.push(
+                    transformShape(
+                        world.components.Position.pos[e],
+                        world.components.Position.angle[e],
+                        ShapeGeometry[shape].collision
+                    )
+                )
+            }
+        }
+
+        for (const enemy of enemyShapes) {
+            for (const enemyPart of enemy) {
+                for (const playerPart of playerShape) {
+                    if (checkCollision(playerPart, enemyPart)) {
+                        console.log('collision')
+                    }
+                }
+            }
+        }
     }
 }

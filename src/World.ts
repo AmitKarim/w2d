@@ -32,11 +32,13 @@ export type World = {
             angle: 'f32'
             angularVelocity: 'f32'
         }>
+        Health: ComponentType<{ health: 'f32' }>
         Color: ComponentType<{ color: ['f32', 3] }>
         Shapes: {
             Diamond: ComponentType<{ frame: 'i16' }>
             CrossedDiamond: ComponentType<{ frame: 'i16' }>
         }
+        Parent: ComponentType<{ parent: 'eid' }>
         Enemies: {
             DiamondSquare: DiamondSquareComponent
         }
@@ -60,11 +62,13 @@ export function createWorldData(
                 angle: Types.f32,
                 angularVelocity: Types.f32,
             }),
+            Health: defineComponent({ health: Types.f32 }),
             Color: defineComponent({ color: [Types.f32, 3] }),
             Shapes: {
                 Diamond: defineComponent({ frame: Types.i16 }),
                 CrossedDiamond: defineComponent({ frame: Types.i16 }),
             },
+            Parent: defineComponent({ parent: Types.eid }),
             Enemies: {
                 DiamondSquare: defineComponent({
                     spawn_time: Types.f32,
