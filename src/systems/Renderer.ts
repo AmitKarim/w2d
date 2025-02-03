@@ -6,7 +6,7 @@ import {
     Bullet_Normal,
     Bullet_Pos,
     BulletThickness,
-    getBulletCount,
+    NumBullets,
     MAX_BULLETS,
 } from './ProjectileSystem'
 import { createBulletShader } from '../engine/shaders/BulletShader'
@@ -47,12 +47,11 @@ function createBulletRenderPass(world: World, gl: WebGL2RenderingContext) {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, bulletIndices, gl.STATIC_DRAW)
 
     const render = () => {
-        const numBullets = getBulletCount()
         let normalX = 0
         let normalY = 0
         let lenX = 0
         let lenY = 0
-        for (let i = 0; i < numBullets; ++i) {
+        for (let i = 0; i < NumBullets; ++i) {
             normalX = Bullet_Normal[i * 2] * BulletThickness
             normalY = Bullet_Normal[i * 2 + 1] * BulletThickness
             lenX = Bullet_Normal[i * 2 + 1] * Bullet_Length[i]
@@ -74,7 +73,7 @@ function createBulletRenderPass(world: World, gl: WebGL2RenderingContext) {
             bulletPoints,
             gl.DYNAMIC_DRAW,
             0,
-            numBullets * bulletPoints.BYTES_PER_ELEMENT * 8
+            NumBullets * bulletPoints.BYTES_PER_ELEMENT * 8
         )
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bulletIndexBuffer)
         gl.enableVertexAttribArray(bulletShader.attributes.aPos)
@@ -97,7 +96,7 @@ function createBulletRenderPass(world: World, gl: WebGL2RenderingContext) {
             1.0 / MaxView,
             world.screen.width / world.screen.height / MaxView
         )
-        gl.drawElements(gl.TRIANGLES, numBullets * 6, gl.UNSIGNED_SHORT, 0)
+        gl.drawElements(gl.TRIANGLES, NumBullets * 6, gl.UNSIGNED_SHORT, 0)
     }
     return render
 }

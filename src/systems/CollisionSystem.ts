@@ -4,6 +4,8 @@ import { vec2, vec4 } from 'gl-matrix'
 import { Debug_DrawLine } from '../engine/Debug_LineDrawingSystem'
 import { defineQuery, Query } from 'bitecs'
 import { checkCollision } from '../engine/collision/SATCollision'
+import { createQuadTree } from '../engine/collision/QuadTree'
+import { Bullet_AABB, Bullet_Polygon, NumBullets } from './ProjectileSystem'
 
 // const MAX_POINTS = 50000
 // const Geometry = new Float32Array(MAX_POINTS)
@@ -61,6 +63,21 @@ export function createCollisionSystem(world: World, player: number) {
             )
         )
     }
+    const computeAABB = (shape: vec2[][]) => {
+        let maxX = Number.NEGATIVE_INFINITY
+        let minX = Number.POSITIVE_INFINITY
+        let maxY = Number.NEGATIVE_INFINITY
+        let minY = Number.POSITIVE_INFINITY
+        for (const subShape of shape) {
+            for (const point of subShape) {
+                maxX = Math.max(maxX, point[0])
+                minX = Math.min(minX, point[0])
+                maxY = Math.max(maxY, point[1])
+                minY = Math.min(minY, point[1])
+            }
+        }
+        return [minX, minY, maxX - minX, maxY - minY]
+    }
 
     return () => {
         const playerShape: vec2[][] = transformShape(
@@ -68,6 +85,22 @@ export function createCollisionSystem(world: World, player: number) {
             world.components.Position.angle[player],
             ShapeGeometry['player'].collision
         )
+        const bulletTree = createQuadTree<number>(
+            vec2.fromValues(-1000, -1000),
+            vec2.fromValues(2000, 2000),
+            10,
+            10
+        )
+        for (let i = 0; i < NumBullets; ++i) {
+            bulletTree.insert(
+                i,
+                Bullet_AABB[i * 4],
+                Bullet_AABB[i * 4 + 1],
+                Bullet_AABB[i * 4 + 2],
+                Bullet_AABB[i * 4 + 3]
+            )
+        }
+        bulletTree.debugDraw()
 
         const playerAABB = computeAABB(playerShape)
 
@@ -90,9 +123,25 @@ export function createCollisionSystem(world: World, player: number) {
         }
 
         for (const enemy of enemyShapes) {
+            const aabb = computeAABB(enemy)
+            const bullets = bulletTree.query(aabb[0], aabb[1], aabb[2], aabb[3])
+            const bulletShape = [
+                vec2.create(),
+                vec2.create(),
+                vec2.create(),
+                vec2.create(),
+            ]
             for (const enemyPart of enemy) {
-                for (const playerPart of playerShape) {
-                    if (checkCollision(playerPart, enemyPart)) {
+                for (const bullet of bullets) {
+                    bulletShape[0][0] = Bullet_Polygon[bullet * 4]
+                    bulletShape[0][1] = Bullet_Polygon[bullet * 4 + 1]
+                    bulletShape[1][0] = Bullet_Polygon[bullet * 4 + 2]
+                    bulletShape[1][1] = Bullet_Polygon[bullet * 4 + 3]
+                    bulletShape[2][0] = Bullet_Polygon[bullet * 4 + 4]
+                    bulletShape[2][1] = Bullet_Polygon[bullet * 4 + 5]
+                    bulletShape[3][0] = Bullet_Polygon[bullet * 4 + 6]
+                    bulletShape[3][1] = Bullet_Polygon[bullet * 4 + 7]
+                    if (checkCollision(bulletShape, enemyPart)) {
                         console.log('collision')
                     }
                 }

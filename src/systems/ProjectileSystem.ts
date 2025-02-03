@@ -11,17 +11,13 @@ export let Bullet_Length = new Float32Array(MAX_BULLETS)
 export let Bullet_AABB = new Float32Array(MAX_BULLETS * 4)
 export let Bullet_Polygon = new Float32Array(MAX_BULLETS * 8)
 
-let numBullets = 0
-
-export function getBulletCount(): number {
-    return numBullets
-}
+export let NumBullets = 0
 
 function addBullet(x: number, y: number, v_x: number, v_y: number) {
-    if (numBullets == MAX_BULLETS) {
+    if (NumBullets == MAX_BULLETS) {
         return
     }
-    let insertIdx = numBullets++
+    let insertIdx = NumBullets++
     Bullet_Pos[insertIdx * 2] = x
     Bullet_Pos[insertIdx * 2 + 1] = y
     Bullet_Vel[insertIdx * 2] = v_x
@@ -72,7 +68,7 @@ export function createBulletProcessor(
                 Bullet_Length = new Float32Array(data[3])
                 Bullet_AABB = new Float32Array(data[4])
                 Bullet_Polygon = new Float32Array(data[5])
-                numBullets = data[6]
+                NumBullets = data[6]
                 resolve()
             }
             bulletWorker.postMessage(
@@ -83,7 +79,7 @@ export function createBulletProcessor(
                     Bullet_Length,
                     Bullet_AABB,
                     Bullet_Polygon,
-                    numBullets,
+                    NumBullets,
                     playerPos,
                     dt,
                 ],
