@@ -2,7 +2,6 @@ import { vec2 } from 'gl-matrix'
 import { RenderData } from './systems/Renderer'
 import { createPlayerWorldData, PlayerData } from './systems/PlayerController'
 import { ComponentType, defineComponent, Types } from 'bitecs'
-import { DiamondSquareComponent } from './components/EnemyComponent'
 
 export const MaxView = 500
 
@@ -24,6 +23,10 @@ export type Screen = {
     height: number
 }
 
+export enum EnemyType {
+    DiamondSquare = 1,
+}
+
 export type World = {
     components: {
         Position: ComponentType<{
@@ -39,9 +42,12 @@ export type World = {
             CrossedDiamond: ComponentType<{ frame: 'i16' }>
         }
         Parent: ComponentType<{ parent: 'eid' }>
-        Enemies: {
-            DiamondSquare: DiamondSquareComponent
-        }
+        Enemy: ComponentType<{
+            spawn_time: 'f32'
+            shapes: ['eid', 16]
+            num_shapes: 'i16'
+            enemy_type: 'i16'
+        }>
     }
     time: TimeData
     render: RenderData
@@ -69,13 +75,12 @@ export function createWorldData(
                 CrossedDiamond: defineComponent({ frame: Types.i16 }),
             },
             Parent: defineComponent({ parent: Types.eid }),
-            Enemies: {
-                DiamondSquare: defineComponent({
-                    spawn_time: Types.f32,
-                    health: Types.f32,
-                    shapes: [Types.eid, 4],
-                }),
-            },
+            Enemy: defineComponent({
+                spawn_time: Types.f32,
+                shapes: [Types.eid, 16],
+                enemy_type: Types.i16,
+                num_shapes: Types.i16,
+            }),
         },
         time: createTimeData(),
         render: {

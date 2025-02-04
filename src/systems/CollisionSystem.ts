@@ -1,7 +1,6 @@
 import { World } from '../World'
 import { ShapeGeometry, Shapes, ShapeType } from '../engine/Shapes'
-import { vec2, vec4 } from 'gl-matrix'
-import { Debug_DrawLine } from '../engine/Debug_LineDrawingSystem'
+import { vec2 } from 'gl-matrix'
 import { defineQuery, Query } from 'bitecs'
 import { checkCollision } from '../engine/collision/SATCollision'
 import { createQuadTree } from '../engine/collision/QuadTree'
@@ -11,44 +10,44 @@ import { Bullet_AABB, Bullet_Polygon, NumBullets } from './ProjectileSystem'
 // const Geometry = new Float32Array(MAX_POINTS)
 // const Entities = new Uint32Array(1000)
 
-function checkAABBCollision(a: [vec2, vec2], b: Float32Array, idx: number) {
-    const [min, max] = a
-    const [minX, minY, maxX, maxY] = b.subarray(idx * 4, idx * 4 + 4)
-    return min[0] < maxX && max[0] > minX && min[1] < maxY && max[1] > minY
-}
+// function checkAABBCollision(a: [vec2, vec2], b: Float32Array, idx: number) {
+//     const [min, max] = a
+//     const [minX, minY, maxX, maxY] = b.subarray(idx * 4, idx * 4 + 4)
+//     return min[0] < maxX && max[0] > minX && min[1] < maxY && max[1] > minY
+// }
 
-const debugDrawShape = (() => {
-    return (pos: vec2, angle: number, shape: vec2[]) => {
-        const a = vec2.create()
-        const b = vec2.create()
-        for (let i = 0; i < shape.length; ++i) {
-            vec2.rotate(a, shape[i], [0, 0], angle)
-            vec2.rotate(b, shape[(i + 1) % shape.length], [0, 0], angle)
-            vec2.add(a, a, pos)
-            vec2.add(b, b, pos)
-            let color = vec4.fromValues(0, 1, 0, 1)
-            Debug_DrawLine(a, b, color)
-        }
-    }
-})()
+// const debugDrawShape = (() => {
+//     return (pos: vec2, angle: number, shape: vec2[]) => {
+//         const a = vec2.create()
+//         const b = vec2.create()
+//         for (let i = 0; i < shape.length; ++i) {
+//             vec2.rotate(a, shape[i], [0, 0], angle)
+//             vec2.rotate(b, shape[(i + 1) % shape.length], [0, 0], angle)
+//             vec2.add(a, a, pos)
+//             vec2.add(b, b, pos)
+//             let color = vec4.fromValues(0, 1, 0, 1)
+//             Debug_DrawLine(a, b, color)
+//         }
+//     }
+// })()
 
-function debugDrawShapes(pos: vec2, angle: number, shapes: vec2[][]) {
-    shapes.map((x) => debugDrawShape(pos, angle, x))
-}
+// function debugDrawShapes(pos: vec2, angle: number, shapes: vec2[][]) {
+//     shapes.map((x) => debugDrawShape(pos, angle, x))
+// }
 
-function computeAABB(shape: vec2[][]): [vec2, vec2] {
-    const min = vec2.create()
-    const max = vec2.create()
-    for (const part of shape) {
-        for (const point of part) {
-            vec2.min(min, min, point)
-            vec2.max(max, max, point)
-        }
-    }
-    return [min, max]
-}
+// function computeAABB(shape: vec2[][]): [vec2, vec2] {
+//     const min = vec2.create()
+//     const max = vec2.create()
+//     for (const part of shape) {
+//         for (const point of part) {
+//             vec2.min(min, min, point)
+//             vec2.max(max, max, point)
+//         }
+//     }
+//     return [min, max]
+// }
 
-export function createCollisionSystem(world: World, player: number) {
+export function createCollisionSystem(world: World, _player: number) {
     const shapeQueries: Record<Exclude<ShapeType, 'player'>, Query<World>> = {
         crossed_diamond: defineQuery([world.components.Shapes.CrossedDiamond]),
         diamond: defineQuery([world.components.Shapes.Diamond]),
@@ -80,11 +79,11 @@ export function createCollisionSystem(world: World, player: number) {
     }
 
     return () => {
-        const playerShape: vec2[][] = transformShape(
-            world.components.Position.pos[player],
-            world.components.Position.angle[player],
-            ShapeGeometry['player'].collision
-        )
+        // const playerShape: vec2[][] = transformShape(
+        //     world.components.Position.pos[player],
+        //     world.components.Position.angle[player],
+        //     ShapeGeometry['player'].collision
+        // )
         const bulletTree = createQuadTree<number>(
             vec2.fromValues(-1000, -1000),
             vec2.fromValues(2000, 2000),
@@ -102,7 +101,7 @@ export function createCollisionSystem(world: World, player: number) {
         }
         bulletTree.debugDraw()
 
-        const playerAABB = computeAABB(playerShape)
+        // const playerAABB = computeAABB(playerShape)
 
         const enemyShapes: vec2[][][] = []
 

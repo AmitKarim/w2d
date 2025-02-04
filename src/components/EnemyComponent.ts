@@ -1,6 +1,6 @@
 import { addComponent, addEntity, ComponentType } from 'bitecs'
 import { vec2 } from 'gl-matrix'
-import { World } from '../World'
+import { EnemyType, World } from '../World'
 
 export type DiamondSquareComponent = ComponentType<{
     spawn_time: 'f32'
@@ -18,8 +18,8 @@ export function spawnDiamondSquare(
     world: World
 ): number {
     const entityID = addEntity(world)
-    const DiamondSquare = world.components.Enemies.DiamondSquare
-    addComponent(world, DiamondSquare, entityID)
+    const Enemy = world.components.Enemy
+    addComponent(world, Enemy, entityID)
 
     addComponent(world, world.components.Health, entityID)
     world.components.Health.health[entityID] = params.health
@@ -29,11 +29,13 @@ export function spawnDiamondSquare(
     const e3 = addEntity(world)
     const e4 = addEntity(world)
 
-    DiamondSquare.shapes[entityID][0] = e1
-    DiamondSquare.shapes[entityID][1] = e2
-    DiamondSquare.shapes[entityID][2] = e3
-    DiamondSquare.shapes[entityID][3] = e4
-    DiamondSquare.spawn_time[entityID] = world.time.elapsed
+    Enemy.shapes[entityID][0] = e1
+    Enemy.shapes[entityID][1] = e2
+    Enemy.shapes[entityID][2] = e3
+    Enemy.shapes[entityID][3] = e4
+    Enemy.num_shapes[entityID] = 4
+    Enemy.spawn_time[entityID] = world.time.elapsed
+    Enemy.enemy_type[entityID] = EnemyType.DiamondSquare
 
     const Diamond = world.components.Shapes.Diamond
     const Parent = world.components.Parent

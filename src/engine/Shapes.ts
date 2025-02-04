@@ -71,8 +71,8 @@ export const ShapeGeometry: Record<
     ShapeType,
     { visual: LineGeometry; collision: vec2[][] }
 > = {
-    player: tesselateLines(scaleShape(shapes['player'], 60), 1.0, 1.5),
-    diamond: tesselateLines(scaleShape(shapes['diamond'], 60), 1.0, 1.5),
+    player: tesselateLines(scaleShape(shapes['player'], 20), 0.5, 0.5),
+    diamond: tesselateLines(scaleShape(shapes['diamond'], 20), 0.5, 0.5),
     crossed_diamond: tesselateLines(
         scaleShape(shapes['crossed_diamond'], 30),
         30,
