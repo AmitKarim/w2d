@@ -3,6 +3,7 @@ import { createShader } from '../Shader'
 const VertexShaderSrc = `#version 300 es
 
 uniform vec2 screenSize;
+uniform vec2 cameraPos;
 in vec2 aPos;
 in float aAlpha;
 in vec3 aColor;
@@ -11,7 +12,7 @@ out vec4 vColor;
 
 void main() {
     vColor = vec4(aColor, aAlpha);
-    gl_Position = vec4(aTransform * vec3(aPos, 1.0) * vec3(screenSize, 1.0), 1.0);
+    gl_Position = vec4((aTransform * vec3(aPos, 1.0) - vec3(cameraPos, 1.0)) * vec3(screenSize, 1.0), 1.0);
 }
 `
 
@@ -30,7 +31,7 @@ export function createFeatheredLineShader(gl: WebGL2RenderingContext) {
         gl,
         VertexShaderSrc,
         FragmentShaderSrc,
-        ['screenSize'],
+        ['screenSize', 'cameraPos'],
         ['aPos', 'aAlpha', 'aColor', 'aTransform']
     )
 }

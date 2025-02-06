@@ -1,104 +1,347 @@
 import { MaxView, World } from '../World'
-import { vec2, mat3 } from 'gl-matrix'
-import { defineQuery, Query } from 'bitecs'
-import {
-    Bullet_Length,
-    Bullet_Normal,
-    Bullet_Pos,
-    BulletThickness,
-    NumBullets,
-    MAX_BULLETS,
-} from './ProjectileSystem'
-import { createBulletShader } from '../engine/shaders/BulletShader'
-import { ShapeGeometry, Shapes, ShapeType } from '../engine/Shapes'
-import { createFeatheredLineShader } from '../engine/shaders/FeatheredLineShader'
+import { vec2 } from 'gl-matrix'
 import { createDebugRenderer } from '../engine/Debug_LineDrawingSystem'
+import { createEntityRenderer } from '../engine/rendering/EntityRendering'
+import { createBulletRenderer } from '../engine/rendering/BulletRendering'
+import { Shader } from '../engine/Shader'
+import {
+    createDownSampleBlurQuadShader,
+    createToneMapQuadShader,
+    createUpSampleAndAddQuadShader,
+} from '../engine/shaders/RenderPassQuadShader'
 
 export type RenderData = {
     gl: WebGL2RenderingContext
     cameraPos: vec2
 }
 
-export type GeometryBufferOffset = {
-    indexStart: number
-    indexCount: number
+function createMultiSampleFrameBuffer(
+    gl: WebGL2RenderingContext,
+    width: number,
+    height: number
+) {
+    const MSAA_SAMPLES_PER_PIXEL = Math.min(4, gl.getParameter(gl.MAX_SAMPLES))
+    const colorRenderBuffer = gl.createRenderbuffer()
+    gl.bindRenderbuffer(gl.RENDERBUFFER, colorRenderBuffer)
+    gl.renderbufferStorageMultisample(
+        gl.RENDERBUFFER,
+        MSAA_SAMPLES_PER_PIXEL,
+        gl.R11F_G11F_B10F,
+        width,
+        height
+    )
+
+    const frameBuffer = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer)
+    gl.framebufferRenderbuffer(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.RENDERBUFFER,
+        colorRenderBuffer
+    )
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null)
+    return frameBuffer
 }
 
-const MaxEntitiesPerType = 256
+function blit(
+    gl: WebGL2RenderingContext,
+    source: WebGLFramebuffer,
+    dest: WebGLFramebuffer,
+    width: number,
+    height: number
+) {
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, source)
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dest)
+    gl.readBuffer(gl.COLOR_ATTACHMENT0)
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0])
+    gl.blitFramebuffer(
+        0,
+        0,
+        width,
+        height,
+        0,
+        0,
+        width,
+        height,
+        gl.COLOR_BUFFER_BIT,
+        gl.NEAREST
+    )
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null)
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null)
+}
 
-function createBulletRenderPass(world: World, gl: WebGL2RenderingContext) {
-    const bulletGeometryBuffer = gl.createBuffer()
-    const bulletPoints = new Float32Array(MAX_BULLETS * 8)
-    const bulletIndexBuffer = gl.createBuffer()
-    const bulletIndices = new Uint16Array(MAX_BULLETS * 6)
+type FrameBufferBundle = {
+    frameBuffer: WebGLFramebuffer
+    texture: WebGLTexture
+    outputSize: [number, number]
+    texelSize: [number, number]
+}
 
-    const bulletShader = createBulletShader(gl)
-    gl.enableVertexAttribArray(bulletShader.attributes.aPos)
+function createFrameBufferBundle(
+    gl: WebGL2RenderingContext,
+    width: number,
+    height: number
+): FrameBufferBundle {
+    const texture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.R11F_G11F_B10F, width, height)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 
-    for (let i = 0; i < MAX_BULLETS; ++i) {
-        bulletIndices[i * 6 + 0] = i * 4
-        bulletIndices[i * 6 + 1] = i * 4 + 1
-        bulletIndices[i * 6 + 2] = i * 4 + 2
-        bulletIndices[i * 6 + 3] = i * 4 + 2
-        bulletIndices[i * 6 + 4] = i * 4 + 3
-        bulletIndices[i * 6 + 5] = i * 4
+    const frameBuffer = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer)
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        texture,
+        0
+    )
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+    return {
+        frameBuffer,
+        texture,
+        outputSize: [width, height],
+        texelSize: [1 / width, 1 / height],
     }
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bulletIndexBuffer)
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, bulletIndices, gl.STATIC_DRAW)
+}
 
-    const render = () => {
-        let normalX = 0
-        let normalY = 0
-        let lenX = 0
-        let lenY = 0
-        for (let i = 0; i < NumBullets; ++i) {
-            normalX = Bullet_Normal[i * 2] * BulletThickness
-            normalY = Bullet_Normal[i * 2 + 1] * BulletThickness
-            lenX = Bullet_Normal[i * 2 + 1] * Bullet_Length[i]
-            lenY = -Bullet_Normal[i * 2] * Bullet_Length[i]
-            bulletPoints[i * 8 + 0] = Bullet_Pos[i * 2] + normalX
-            bulletPoints[i * 8 + 1] = Bullet_Pos[i * 2 + 1] + normalY
-            bulletPoints[i * 8 + 2] = Bullet_Pos[i * 2] - normalX
-            bulletPoints[i * 8 + 3] = Bullet_Pos[i * 2 + 1] - normalY
-            bulletPoints[i * 8 + 4] = Bullet_Pos[i * 2] - lenX - normalX
-            bulletPoints[i * 8 + 5] = Bullet_Pos[i * 2 + 1] - lenY - normalY
-            bulletPoints[i * 8 + 6] = Bullet_Pos[i * 2] - lenX + normalX
-            bulletPoints[i * 8 + 7] = Bullet_Pos[i * 2 + 1] - lenY + normalY
-        }
+function createFullscreenRenderPass<
+    Uniform extends string,
+    T extends Shader<Uniform, 'aPos' | 'aTexCoord'>,
+>(gl: WebGL2RenderingContext, shader: T) {
+    const quadVAO = gl.createVertexArray()
+    gl.bindVertexArray(quadVAO)
 
-        gl.useProgram(bulletShader.program)
-        gl.bindBuffer(gl.ARRAY_BUFFER, bulletGeometryBuffer)
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            bulletPoints,
-            gl.DYNAMIC_DRAW,
-            0,
-            NumBullets * bulletPoints.BYTES_PER_ELEMENT * 8
-        )
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bulletIndexBuffer)
-        gl.enableVertexAttribArray(bulletShader.attributes.aPos)
-        gl.vertexAttribPointer(
-            bulletShader.attributes.aPos,
-            2,
-            gl.FLOAT,
-            false,
-            0,
-            0
-        )
-        gl.uniform2f(
-            bulletShader.uniforms.cameraPos,
-            world.render.cameraPos[0],
-            world.render.cameraPos[1]
-        )
-        gl.uniform3f(bulletShader.uniforms.color, 255, 0, 0)
-        gl.uniform2f(
-            bulletShader.uniforms.screenSize,
-            1.0 / MaxView,
-            world.screen.width / world.screen.height / MaxView
-        )
-        gl.drawElements(gl.TRIANGLES, NumBullets * 6, gl.UNSIGNED_SHORT, 0)
+    const buffer = gl.createBuffer()
+    const vertices = new Float32Array([
+        -1, 1, 0, 1, -1, -1, 0, 0, 1, 1, 1, 1, 1, -1, 1, 0,
+    ])
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
+    gl.vertexAttribPointer(shader.attributes.aPos, 2, gl.FLOAT, false, 16, 0)
+    gl.vertexAttribPointer(
+        shader.attributes.aTexCoord,
+        2,
+        gl.FLOAT,
+        false,
+        16,
+        8
+    )
+    gl.enableVertexAttribArray(shader.attributes.aPos)
+    gl.enableVertexAttribArray(shader.attributes.aTexCoord)
+
+    gl.bindVertexArray(null)
+    gl.bindBuffer(gl.ARRAY_BUFFER, null)
+
+    const render = (
+        inputTextures: WebGLTexture[],
+        outputFrameBuffer: WebGLFramebuffer | null
+    ) => {
+        gl.useProgram(shader.program)
+        gl.bindVertexArray(quadVAO)
+        inputTextures.forEach((x, idx) => {
+            gl.activeTexture(gl.TEXTURE0 + idx)
+            gl.bindTexture(gl.TEXTURE_2D, x)
+        })
+        gl.bindFramebuffer(gl.FRAMEBUFFER, outputFrameBuffer)
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+        inputTextures.forEach((_, idx) => {
+            gl.activeTexture(gl.TEXTURE0 + idx)
+            gl.bindTexture(gl.TEXTURE_2D, null)
+        })
+        gl.bindVertexArray(null)
+        gl.useProgram(null)
     }
     return render
+}
+
+// function createLuminanceThresholdRenderPass(gl: WebGL2RenderingContext) {
+//     const shader = createLuminanceThresholdQuadShader(gl)
+//     const renderPass = createFullscreenRenderPass(gl, shader)
+//     return (source: FrameBufferBundle, destination: FrameBufferBundle) => {
+//         renderPass([source.texture], destination.frameBuffer)
+//     }
+// }
+
+// function createHorizontalGaussianBlurRenderPass(gl: WebGL2RenderingContext) {
+//     const shader = createHorizontalGaussianBlurQuadShader(gl)
+//     const renderPass = createFullscreenRenderPass(gl, shader)
+//     return (source: FrameBufferBundle, destination: FrameBufferBundle) => {
+//         gl.useProgram(shader.program)
+//         renderPass([source.texture], destination.frameBuffer)
+//     }
+// }
+
+// function createVerticalGaussianBlurRenderPass(gl: WebGL2RenderingContext) {
+//     const shader = createVerticalGaussianBlurQuadShader(gl)
+//     const renderPass = createFullscreenRenderPass(gl, shader)
+//     return (source: FrameBufferBundle, destination: FrameBufferBundle) => {
+//         gl.useProgram(shader.program)
+//         gl.uniform2fv(shader.uniforms.texelSize, source.texelSize)
+//         renderPass([source.texture], destination.frameBuffer)
+//     }
+// }
+
+function createDownsampleBlurRenderPass(gl: WebGL2RenderingContext) {
+    const shader = createDownSampleBlurQuadShader(gl)
+    const renderPass = createFullscreenRenderPass(gl, shader)
+    return (source: FrameBufferBundle, destination: FrameBufferBundle) => {
+        gl.useProgram(shader.program)
+        gl.uniform2fv(shader.uniforms.texelSize, source.texelSize)
+        gl.viewport(0, 0, ...destination.outputSize)
+        renderPass([source.texture], destination.frameBuffer)
+    }
+}
+
+// function createUpSampleRenderPass(gl: WebGL2RenderingContext) {
+//     const shader = createUpSampleQuadShader(gl)
+//     const renderPass = createFullscreenRenderPass(gl, shader)
+
+//     gl.useProgram(shader.program)
+//     gl.uniform1i(shader.uniforms.smallerSampler, 0)
+//     gl.uniform1i(shader.uniforms.largerSampler, 1)
+//     gl.useProgram(null)
+
+//     return (
+//         smallerSource: FrameBufferBundle,
+//         largerSource: FrameBufferBundle,
+//         destination: FrameBufferBundle
+//     ) => {
+//         gl.useProgram(shader.program)
+//         gl.uniform2fv(shader.uniforms.texelSize, smallerSource.texelSize)
+//         gl.viewport(0, 0, ...destination.outputSize)
+//         renderPass(
+//             [smallerSource.texture, largerSource.texture],
+//             destination.frameBuffer
+//         )
+//     }
+// }
+
+function createUpSampleAndAddRenderPass(gl: WebGL2RenderingContext) {
+    const shader = createUpSampleAndAddQuadShader(gl)
+    const renderPass = createFullscreenRenderPass(gl, shader)
+
+    gl.useProgram(shader.program)
+    gl.uniform1i(shader.uniforms.smallerSampler, 0)
+    gl.uniform1i(shader.uniforms.largerSampler, 1)
+    gl.useProgram(null)
+
+    return (
+        smallerSource: FrameBufferBundle,
+        largerSource: FrameBufferBundle,
+        destination: FrameBufferBundle
+    ) => {
+        gl.useProgram(shader.program)
+        gl.uniform2fv(shader.uniforms.texelSize, smallerSource.texelSize)
+        gl.viewport(0, 0, ...destination.outputSize)
+        renderPass(
+            [smallerSource.texture, largerSource.texture],
+            destination.frameBuffer
+        )
+    }
+}
+
+function createToneMapRenderPass(
+    gl: WebGL2RenderingContext,
+    width: number,
+    height: number
+) {
+    const shader = createToneMapQuadShader(gl)
+    const renderPass = createFullscreenRenderPass(gl, shader)
+
+    return (
+        source: FrameBufferBundle,
+        destination: FrameBufferBundle | null
+    ) => {
+        const size = destination
+            ? destination.outputSize
+            : ([width, height] as [number, number])
+        gl.viewport(0, 0, ...size)
+        renderPass(
+            [source.texture],
+            destination ? destination.frameBuffer : null
+        )
+    }
+}
+
+function createBloomPass(
+    gl: WebGL2RenderingContext,
+    world: World,
+    renderGeometry: () => void
+) {
+    // Necessary for using floating-point buffers
+    gl.getExtension('EXT_color_buffer_float')
+
+    const { width, height } = world.screen
+
+    const drawDownSampleBlur = createDownsampleBlurRenderPass(gl)
+    const drawUpSampleAdd = createUpSampleAndAddRenderPass(gl)
+    const drawToneMap = createToneMapRenderPass(gl, width, height)
+
+    const geometryMultiSampleBuffer = createMultiSampleFrameBuffer(
+        gl,
+        width,
+        height
+    )
+
+    const geometryFBBundle = createFrameBufferBundle(gl, width, height)
+    const downsampleBlur = [2, 4, 8, 16, 32, 64].map((x) =>
+        createFrameBufferBundle(gl, width / x, height / x)
+    )
+    const upsampleBlur = [32, 16, 8, 4, 2, 1].map((x) =>
+        createFrameBufferBundle(gl, width / x, height / x)
+    )
+    // const debugPass = createFullscreenRenderPass(
+    //     gl,
+    //     createRenderPassQuadShader(gl)
+    // )
+    // const debug = (step: FrameBufferBundle) => {
+    //     gl.viewport(0, 0, width, height)
+    //     debugPass([step.texture], null)
+    // }
+
+    return () => {
+        // Stage 1: render geometry to multisample renderbuffers
+        gl.bindFramebuffer(gl.FRAMEBUFFER, geometryMultiSampleBuffer)
+        renderGeometry()
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+        // Stage 2: copy anti-aliased geometry to geometry texture
+        blit(
+            gl,
+            geometryMultiSampleBuffer,
+            geometryFBBundle.frameBuffer,
+            width,
+            height
+        )
+
+        // Stage 3: Downsample and blur
+        drawDownSampleBlur(geometryFBBundle, downsampleBlur[0])
+        drawDownSampleBlur(downsampleBlur[0], downsampleBlur[1])
+        drawDownSampleBlur(downsampleBlur[1], downsampleBlur[2])
+        drawDownSampleBlur(downsampleBlur[2], downsampleBlur[3])
+        drawDownSampleBlur(downsampleBlur[3], downsampleBlur[4])
+        drawDownSampleBlur(downsampleBlur[4], downsampleBlur[5])
+
+        // Stage 4: upsample and recombine
+        drawUpSampleAdd(downsampleBlur[5], downsampleBlur[4], upsampleBlur[0])
+        drawUpSampleAdd(upsampleBlur[0], downsampleBlur[3], upsampleBlur[1])
+        drawUpSampleAdd(upsampleBlur[1], downsampleBlur[2], upsampleBlur[2])
+        drawUpSampleAdd(upsampleBlur[2], downsampleBlur[1], upsampleBlur[3])
+        drawUpSampleAdd(upsampleBlur[3], downsampleBlur[0], upsampleBlur[4])
+        drawUpSampleAdd(upsampleBlur[4], geometryFBBundle, upsampleBlur[5])
+
+        // Stage 5: Tone map (and gamma correct, if necessary)
+        drawToneMap(upsampleBlur[5], null)
+        // debug(downsampleBlur[5])
+    }
 }
 export async function createRenderFunc(
     world: World,
@@ -106,233 +349,28 @@ export async function createRenderFunc(
 ): Promise<() => void> {
     const { gl } = world.render
     gl.disable(gl.CULL_FACE)
-    const lineShader = createFeatheredLineShader(gl)
 
-    const bulletRenderPass = createBulletRenderPass(world, gl)
-
-    const shapeGeometryOffsets: Record<ShapeType, GeometryBufferOffset> =
-        {} as any
-
-    const shipGeometry = gl.createBuffer()
-    const shipIndexBuffer = gl.createBuffer()
-    {
-        let totalFloats = 0
-        let totalIndices = 0
-        for (const s of Shapes) {
-            const entry = ShapeGeometry[s]
-            totalFloats += entry.visual.points.length
-            totalIndices += entry.visual.indices.length
-        }
-        const arrayData = new Float32Array(totalFloats)
-        const indexData = new Uint16Array(totalIndices)
-
-        let vIdx = 0
-        let iIdx = 0
-        for (const s of Shapes) {
-            const geometry = ShapeGeometry[s]
-            arrayData.set(geometry.visual.points, vIdx)
-            indexData.set(
-                geometry.visual.indices.map((x) => x + vIdx / 3),
-                iIdx
-            )
-
-            shapeGeometryOffsets[s] = {
-                indexStart: iIdx,
-                indexCount: geometry.visual.indices.length,
-            }
-            vIdx += geometry.visual.points.length
-            iIdx += geometry.visual.indices.length
-        }
-        gl.bindBuffer(gl.ARRAY_BUFFER, shipGeometry)
-        gl.bufferData(gl.ARRAY_BUFFER, arrayData, gl.STATIC_DRAW, 0)
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipIndexBuffer)
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexData, gl.STATIC_DRAW)
-    }
-    const drawGeometryInstanced = (
-        geometryType: ShapeType,
-        instanceCount: number
-    ) => {
-        gl.bindBuffer(gl.ARRAY_BUFFER, shipGeometry)
-        gl.enableVertexAttribArray(lineShader.attributes.aPos)
-        gl.vertexAttribPointer(
-            lineShader.attributes.aPos,
-            2,
-            gl.FLOAT,
-            false,
-            12,
-            0
-        )
-        gl.enableVertexAttribArray(lineShader.attributes.aAlpha)
-        gl.vertexAttribPointer(
-            lineShader.attributes.aAlpha,
-            1,
-            gl.FLOAT,
-            false,
-            12,
-            8
-        )
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, shipIndexBuffer)
-
-        const offset = shapeGeometryOffsets[geometryType]
-        gl.drawElementsInstanced(
-            gl.TRIANGLES,
-            offset.indexCount,
-            gl.UNSIGNED_SHORT,
-            offset.indexStart * 2,
-            instanceCount
-        )
-    }
-    const colorData = new Uint8Array(MaxEntitiesPerType * 3)
-    colorData.fill(0)
-    const colorBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
-    gl.enableVertexAttribArray(lineShader.attributes.aColor)
-    gl.vertexAttribPointer(
-        lineShader.attributes.aColor,
-        3,
-        gl.UNSIGNED_BYTE,
-        false,
-        0,
-        0
-    )
-    gl.vertexAttribDivisor(lineShader.attributes.aColor, 1)
-    const setColorData = (r: number, g: number, b: number, idx: number) => {
-        colorData[idx * 3] = r
-        colorData[idx * 3 + 1] = g
-        colorData[idx * 3 + 2] = b
-    }
-    const bufferColorData = (entityCount: number) => {
-        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            colorData,
-            gl.DYNAMIC_DRAW,
-            0,
-            entityCount * 3
-        )
-    }
-
-    const transformData = new Float32Array(MaxEntitiesPerType * 9)
-    const transformBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, transformBuffer)
-    for (let i = 0; i < 3; ++i) {
-        const rowLoc = lineShader.attributes.aTransform + i
-        gl.enableVertexAttribArray(rowLoc)
-        gl.vertexAttribPointer(rowLoc, 3, gl.FLOAT, false, 9 * 4, i * 12)
-        gl.vertexAttribDivisor(rowLoc, 1)
-    }
-    const setTransformData = (transform: mat3, idx: number) => {
-        transformData[idx * 9 + 0] = transform[0]
-        transformData[idx * 9 + 1] = transform[1]
-        transformData[idx * 9 + 2] = transform[2]
-        transformData[idx * 9 + 3] = transform[3]
-        transformData[idx * 9 + 4] = transform[4]
-        transformData[idx * 9 + 5] = transform[5]
-        transformData[idx * 9 + 6] = transform[6]
-        transformData[idx * 9 + 7] = transform[7]
-        transformData[idx * 9 + 8] = transform[8]
-    }
-    const toMat3 = (pos: vec2, angle: number, mat: mat3) => {
-        mat3.fromTranslation(mat, pos)
-        mat3.rotate(mat, mat, angle)
-        return mat
-    }
-
-    const bufferTransformData = (entityCount: number) => {
-        gl.bindBuffer(gl.ARRAY_BUFFER, transformBuffer)
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            transformData,
-            gl.DYNAMIC_DRAW,
-            0,
-            entityCount * 9
-        )
-    }
-
-    const shapeHelpers: Record<
-        Exclude<ShapeType, 'player'>,
-        {
-            query: Query<World>
-            component: typeof world.components.Shapes.Diamond
-        }
-    > = {
-        crossed_diamond: {
-            query: defineQuery([
-                world.components.Shapes.CrossedDiamond,
-                world.components.Color,
-            ]),
-            component: world.components.Shapes.CrossedDiamond,
-        },
-        diamond: {
-            query: defineQuery([
-                world.components.Shapes.Diamond,
-                world.components.Color,
-            ]),
-            component: world.components.Shapes.Diamond,
-        },
-    }
-
-    const drawShapes = (type: Exclude<ShapeType, 'player'>) => {
-        const { query } = shapeHelpers[type]
-        const entities = query(world)
-        const mat = mat3.create()
-        for (let i = 0; i < entities.length; ++i) {
-            setTransformData(
-                toMat3(
-                    world.components.Position.pos[entities[i]],
-                    world.components.Position.angle[entities[i]],
-                    mat
-                ),
-                i
-            )
-            setColorData(
-                world.components.Color.color[entities[i]][0],
-                world.components.Color.color[entities[i]][1],
-                world.components.Color.color[entities[i]][2],
-                i
-            )
-        }
-        bufferTransformData(entities.length)
-        bufferColorData(entities.length)
-        drawGeometryInstanced(type, entities.length)
-    }
+    const bulletRenderPass = createBulletRenderer(world, gl)
+    const drawEntities = createEntityRenderer(gl, world, player)
 
     const Debug_LineRenderer = createDebugRenderer(gl)
 
-    return () => {
+    const renderGeometry = () => {
         const { gl } = world.render
         gl.clearColor(0.0, 0.0, 0.0, 1.0)
+        gl.viewport(0, 0, world.screen.width, world.screen.height)
         gl.clear(gl.COLOR_BUFFER_BIT)
         gl.disable(gl.DEPTH_TEST)
-        gl.useProgram(lineShader.program)
 
-        const playerMat = mat3.create()
-        toMat3(
-            world.components.Position.pos[player],
-            world.components.Position.angle[player],
-            playerMat
-        )
-        setColorData(255, 255, 0, 0)
-        setTransformData(playerMat, 0)
-        gl.uniform2f(
-            lineShader.uniforms.screenSize,
-            1.0 / MaxView,
-            world.screen.width / world.screen.height / MaxView
-        )
-        bufferColorData(1)
-        bufferTransformData(1)
-        gl.enable(gl.BLEND)
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-
-        drawGeometryInstanced('player', 1)
-
-        for (const key of Shapes) {
-            if (key == 'player') {
-                continue
-            }
-            drawShapes(key)
-        }
+        drawEntities()
         bulletRenderPass()
+    }
+
+    const bloomPass = createBloomPass(gl, world, renderGeometry)
+
+    return () => {
+        // renderGeometry()
+        bloomPass()
         Debug_LineRenderer(
             world.render.cameraPos,
             vec2.fromValues(
@@ -340,6 +378,5 @@ export async function createRenderFunc(
                 world.screen.width / world.screen.height / MaxView
             )
         )
-        gl.flush()
     }
 }

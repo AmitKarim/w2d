@@ -7,6 +7,7 @@ import { createEnemyShapeUpdater } from './systems/UpdateEnemyShapes'
 import { spawnDiamondSquare } from './components/EnemyComponent'
 import { createBulletProcessor } from './systems/ProjectileSystem'
 import { createCollisionSystem } from './systems/CollisionSystem'
+import { createCameraSystem } from './systems/CameraController'
 
 async function main() {
     let canvas = document.getElementById('canvas') as HTMLCanvasElement
@@ -28,7 +29,7 @@ async function main() {
             pos: [32, 12],
             angle: 0,
             health: 100,
-            color: [255, 0, 0],
+            color: [120, 0, 0],
         },
         world
     )
@@ -38,10 +39,11 @@ async function main() {
     const updateEnemies = createEnemyShapeUpdater(world, player)
     const updateBullets = createBulletProcessor(world, player)
     const updateCollisions = createCollisionSystem(world, player)
+    const updateCamera = createCameraSystem(world, player)
     const update = async () => {
         updateTime(world)
         updatePlayer()
-        await Promise.all([updateBullets(), updateEnemies()])
+        await Promise.all([updateBullets(), updateEnemies(), updateCamera()])
         updateCollisions()
         renderScene()
         requestAnimationFrame(update)
