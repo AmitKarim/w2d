@@ -1,5 +1,7 @@
+import { defineQuery } from 'bitecs'
 import { createDampingCoefficient, criticalSpring2D } from '../engine/Springs'
 import { MaxView, World } from '../World'
+import { vec2 } from 'gl-matrix'
 
 export type PlayerData = {
     mouseX: number
@@ -49,7 +51,12 @@ export function createPlayerController(
     const playerDampingCoefficient = createDampingCoefficient(0.4)
     let playerVelocity: [number, number] = [0, 0]
     let playerPosition: [number, number] = [0, 0]
+
+    let enemyQuery = defineQuery([world.components.Enemy])
+    const Position = world.components.Position
     return () => {
+        const enemies = enemyQuery(world)
+
         criticalSpring2D(
             playerPosition,
             playerVelocity,
@@ -57,7 +64,35 @@ export function createPlayerController(
             playerDampingCoefficient,
             world.time.delta
         )
-        world.components.Position.pos[player][0] = playerPosition[0]
-        world.components.Position.pos[player][1] = playerPosition[1]
+
+        let nearest = Number.POSITIVE_INFINITY
+        let sqDist = 0
+        let closestEnemy: number = -1
+        for (const enemy of enemies) {
+            sqDist =
+                (Position.pos[enemy][0] - playerPosition[0]) *
+                    (Position.pos[enemy][0] - playerPosition[0]) +
+                (Position.pos[enemy][1] - playerPosition[1]) *
+                    (Position.pos[enemy][1] - playerPosition[1])
+            if (sqDist < nearest) {
+                closestEnemy = enemy
+            }
+        }
+        if (closestEnemy >= 0) {
+            const dir = vec2.fromValues(
+                Position.pos[closestEnemy][0] - playerPosition[0],
+                Position.pos[closestEnemy][1] - playerPosition[1]
+            )
+            vec2.normalize(dir, dir)
+            Position.angle[player] = Math.acos(dir[1])
+            if (dir[0] > 0) {
+                Position.angle[player] = -Position.angle[player]
+            }
+            // if (Position.angle[player] > Math.PI) {
+            //     Position.angle[player] -= Math.PI
+            // }
+        }
+        Position.pos[player][0] = playerPosition[0]
+        Position.pos[player][1] = playerPosition[1]
     }
 }

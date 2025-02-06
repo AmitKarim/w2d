@@ -44,7 +44,7 @@ export function createBulletProcessor(
         if (elapsedTime >= world.player.controls.firing_rate) {
             lastFireTime = world.time.elapsed
             let v_x =
-                Math.sin(world.components.Position.angle[player]) *
+                -Math.sin(world.components.Position.angle[player]) *
                 world.player.controls.projectile_speed
             let v_y =
                 Math.cos(world.components.Position.angle[player]) *
