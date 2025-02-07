@@ -1,51 +1,18 @@
 import { World } from '../World'
 import { ShapeGeometry, Shapes, ShapeType } from '../engine/Shapes'
-import { vec2 } from 'gl-matrix'
+import { vec2, vec4 } from 'gl-matrix'
 import { defineQuery, Query } from 'bitecs'
 import { checkCollision } from '../engine/collision/SATCollision'
 import { createQuadTree } from '../engine/collision/QuadTree'
-import { Bullet_AABB, Bullet_Polygon, NumBullets } from './ProjectileSystem'
-
-// const MAX_POINTS = 50000
-// const Geometry = new Float32Array(MAX_POINTS)
-// const Entities = new Uint32Array(1000)
-
-// function checkAABBCollision(a: [vec2, vec2], b: Float32Array, idx: number) {
-//     const [min, max] = a
-//     const [minX, minY, maxX, maxY] = b.subarray(idx * 4, idx * 4 + 4)
-//     return min[0] < maxX && max[0] > minX && min[1] < maxY && max[1] > minY
-// }
-
-// const debugDrawShape = (() => {
-//     return (pos: vec2, angle: number, shape: vec2[]) => {
-//         const a = vec2.create()
-//         const b = vec2.create()
-//         for (let i = 0; i < shape.length; ++i) {
-//             vec2.rotate(a, shape[i], [0, 0], angle)
-//             vec2.rotate(b, shape[(i + 1) % shape.length], [0, 0], angle)
-//             vec2.add(a, a, pos)
-//             vec2.add(b, b, pos)
-//             let color = vec4.fromValues(0, 1, 0, 1)
-//             Debug_DrawLine(a, b, color)
-//         }
-//     }
-// })()
-
-// function debugDrawShapes(pos: vec2, angle: number, shapes: vec2[][]) {
-//     shapes.map((x) => debugDrawShape(pos, angle, x))
-// }
-
-// function computeAABB(shape: vec2[][]): [vec2, vec2] {
-//     const min = vec2.create()
-//     const max = vec2.create()
-//     for (const part of shape) {
-//         for (const point of part) {
-//             vec2.min(min, min, point)
-//             vec2.max(max, max, point)
-//         }
-//     }
-//     return [min, max]
-// }
+import {
+    Bullet_AABB,
+    Bullet_Polygon,
+    Bullet_Pos,
+    NumBullets,
+    removeBullet,
+} from './ProjectileSystem'
+import { createNewParticleExplosion } from '../engine/rendering/ParticleRendering'
+import { Debug_DrawLine } from '../engine/Debug_LineDrawingSystem'
 
 export function createCollisionSystem(world: World, _player: number) {
     const shapeQueries: Record<Exclude<ShapeType, 'player'>, Query<World>> = {
@@ -75,7 +42,7 @@ export function createCollisionSystem(world: World, _player: number) {
                 minY = Math.min(minY, point[1])
             }
         }
-        return [minX, minY, maxX - minX, maxY - minY]
+        return [minX, minY, maxX, maxY]
     }
 
     return () => {
@@ -88,7 +55,7 @@ export function createCollisionSystem(world: World, _player: number) {
             vec2.fromValues(-1000, -1000),
             vec2.fromValues(2000, 2000),
             10,
-            10
+            100
         )
         for (let i = 0; i < NumBullets; ++i) {
             bulletTree.insert(
@@ -99,7 +66,31 @@ export function createCollisionSystem(world: World, _player: number) {
                 Bullet_AABB[i * 4 + 3]
             )
         }
-        bulletTree.debugDraw()
+
+        const drawAABB = (aabb: number[], color: vec4) => {
+            const v: [number, number][] = [
+                [aabb[0], aabb[1]],
+                [aabb[2], aabb[1]],
+                [aabb[2], aabb[3]],
+                [aabb[0], aabb[3]],
+            ]
+            Debug_DrawLine(v[0], v[1], color)
+            Debug_DrawLine(v[1], v[2], color)
+            Debug_DrawLine(v[2], v[3], color)
+            Debug_DrawLine(v[3], v[0], color)
+        }
+
+        bulletTree.debugDraw(
+            [
+                world.render.cameraPos[0] + world.player.mouseX,
+                world.render.cameraPos[1] + world.player.mouseY,
+            ],
+            (x: number) =>
+                drawAABB(
+                    [...Bullet_AABB.slice(x * 4, (x + 1) * 4)],
+                    vec4.fromValues(0, 0, 1, 1)
+                )
+        )
 
         // const playerAABB = computeAABB(playerShape)
 
@@ -121,9 +112,25 @@ export function createCollisionSystem(world: World, _player: number) {
             }
         }
 
+        const debug_color = vec4.fromValues(1, 1, 0, 1)
+        let bulletsToDelete = new Set<number>()
+
         for (const enemy of enemyShapes) {
             const aabb = computeAABB(enemy)
-            const bullets = bulletTree.query(aabb[0], aabb[1], aabb[2], aabb[3])
+            drawAABB(aabb, debug_color)
+            const bullets = bulletTree.query(
+                aabb[0],
+                aabb[1],
+                aabb[2] - aabb[0],
+                aabb[3] - aabb[1]
+            )
+
+            bullets.forEach((x) =>
+                drawAABB(
+                    [...Bullet_AABB.slice(x * 4, (x + 1) * 4)],
+                    vec4.fromValues(1, 1, 1, 1)
+                )
+            )
             const bulletShape = [
                 vec2.create(),
                 vec2.create(),
@@ -131,20 +138,39 @@ export function createCollisionSystem(world: World, _player: number) {
                 vec2.create(),
             ]
             for (const enemyPart of enemy) {
-                for (const bullet of bullets) {
-                    bulletShape[0][0] = Bullet_Polygon[bullet * 4]
-                    bulletShape[0][1] = Bullet_Polygon[bullet * 4 + 1]
-                    bulletShape[1][0] = Bullet_Polygon[bullet * 4 + 2]
-                    bulletShape[1][1] = Bullet_Polygon[bullet * 4 + 3]
-                    bulletShape[2][0] = Bullet_Polygon[bullet * 4 + 4]
-                    bulletShape[2][1] = Bullet_Polygon[bullet * 4 + 5]
-                    bulletShape[3][0] = Bullet_Polygon[bullet * 4 + 6]
-                    bulletShape[3][1] = Bullet_Polygon[bullet * 4 + 7]
+                for (
+                    let bulletIdx = 0;
+                    bulletIdx < bullets.length;
+                    ++bulletIdx
+                ) {
+                    const bullet = bullets[bulletIdx]
+                    if (bulletsToDelete.has(bullet)) {
+                        continue
+                    }
+                    bulletShape[0][0] = Bullet_Polygon[bullet * 8]
+                    bulletShape[0][1] = Bullet_Polygon[bullet * 8 + 1]
+                    bulletShape[1][0] = Bullet_Polygon[bullet * 8 + 2]
+                    bulletShape[1][1] = Bullet_Polygon[bullet * 8 + 3]
+                    bulletShape[2][0] = Bullet_Polygon[bullet * 8 + 4]
+                    bulletShape[2][1] = Bullet_Polygon[bullet * 8 + 5]
+                    bulletShape[3][0] = Bullet_Polygon[bullet * 8 + 6]
+                    bulletShape[3][1] = Bullet_Polygon[bullet * 8 + 7]
                     if (checkCollision(bulletShape, enemyPart)) {
-                        console.log('collision')
+                        createNewParticleExplosion({
+                            position: vec2.fromValues(
+                                Bullet_Pos[bullet * 2],
+                                Bullet_Pos[bullet * 2 + 1]
+                            ),
+                            size: 1,
+                            lifeTime: 2.0,
+                        })
+                        bulletsToDelete.add(bullets[bulletIdx])
                     }
                 }
             }
+        }
+        for (const bullet of bulletsToDelete.keys()) {
+            removeBullet(bullet)
         }
     }
 }

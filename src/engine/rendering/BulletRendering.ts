@@ -30,6 +30,13 @@ export function createBulletRenderer(world: World, gl: WebGL2RenderingContext) {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, bulletIndices, gl.STATIC_DRAW)
 
     const render = () => {
+        if (NumBullets == 0) {
+            return
+        }
+        if (NumBullets < 0) {
+            throw new Error('not possible')
+        }
+
         let normalX = 0
         let normalY = 0
         let lenX = 0

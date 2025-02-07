@@ -7,12 +7,14 @@ export type Shader<Uniform extends string, Attribute extends string> = {
 export function createShader<
     Uniforms extends string,
     Attributes extends string,
+    Outputs extends string,
 >(
     gl: WebGL2RenderingContext,
     vsSrc: string,
     fsSrc: string,
     uniforms: Uniforms[],
-    attributes: Attributes[]
+    attributes: Attributes[],
+    outputs?: Outputs[]
 ): Shader<Uniforms, Attributes> {
     const program = gl.createProgram()
     const vertexShader = gl.createShader(gl.VERTEX_SHADER)
@@ -38,6 +40,10 @@ export function createShader<
         console.error(gl.getShaderInfoLog(fragmentShader))
     }
     gl.attachShader(program, fragmentShader)
+
+    if (outputs) {
+        gl.transformFeedbackVaryings(program, outputs, gl.INTERLEAVED_ATTRIBS)
+    }
 
     gl.linkProgram(program)
 

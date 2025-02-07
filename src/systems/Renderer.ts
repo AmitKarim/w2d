@@ -9,6 +9,7 @@ import {
     createToneMapQuadShader,
     createUpSampleAndAddQuadShader,
 } from '../engine/shaders/RenderPassQuadShader'
+import { createParticleRenderer } from '../engine/rendering/ParticleRendering'
 
 export type RenderData = {
     gl: WebGL2RenderingContext
@@ -352,6 +353,7 @@ export async function createRenderFunc(
 
     const bulletRenderPass = createBulletRenderer(world, gl)
     const drawEntities = createEntityRenderer(gl, world, player)
+    const particleRenderPass = createParticleRenderer(gl, world)
 
     const Debug_LineRenderer = createDebugRenderer(gl)
 
@@ -364,6 +366,7 @@ export async function createRenderFunc(
 
         drawEntities()
         bulletRenderPass()
+        particleRenderPass()
     }
 
     const bloomPass = createBloomPass(gl, world, renderGeometry)

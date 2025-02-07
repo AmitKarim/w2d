@@ -30,23 +30,17 @@ export function createPlayerController(
     player: number,
     canvas: HTMLCanvasElement
 ) {
-    canvas.addEventListener(
-        'mousemove',
-        (e: MouseEvent) => {
-            const halfWidth = world.screen.width / 2
-            const halfHeight = world.screen.height / 2
-            world.player.mouseX = ((e.x - halfWidth) * MaxView) / halfWidth
-            world.player.mouseY =
-                ((halfHeight - e.y) *
-                    (world.screen.height / world.screen.width) *
-                    MaxView) /
-                halfHeight
-            // console.log(
-            //     `x (orig): ${e.x} y(orig): ${e.y} x: ${world.player.mouseX} y: ${world.player.mouseY}`
-            // )
-        },
-        false
-    )
+    canvas.addEventListener('mousemove', (event) => {
+        const canvasRect = canvas.getBoundingClientRect()
+        const scaleX = (MaxView * 2) / canvasRect.width
+        const MaxY = (world.screen.height / world.screen.width) * MaxView
+        const scaleY = (MaxY * 2) / canvasRect.height
+
+        world.player.mouseX =
+            (event.clientX - canvasRect.left) * scaleX - MaxView
+        world.player.mouseY =
+            (canvas.height - event.clientY + canvasRect.top) * scaleY - MaxY
+    })
 
     const playerDampingCoefficient = createDampingCoefficient(0.4)
     let playerVelocity: [number, number] = [0, 0]
@@ -60,7 +54,10 @@ export function createPlayerController(
         criticalSpring2D(
             playerPosition,
             playerVelocity,
-            [world.player.mouseX, world.player.mouseY],
+            [
+                world.render.cameraPos[0] + world.player.mouseX,
+                world.render.cameraPos[1] + world.player.mouseY,
+            ],
             playerDampingCoefficient,
             world.time.delta
         )
@@ -88,9 +85,6 @@ export function createPlayerController(
             if (dir[0] > 0) {
                 Position.angle[player] = -Position.angle[player]
             }
-            // if (Position.angle[player] > Math.PI) {
-            //     Position.angle[player] -= Math.PI
-            // }
         }
         Position.pos[player][0] = playerPosition[0]
         Position.pos[player][1] = playerPosition[1]

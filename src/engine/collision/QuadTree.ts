@@ -1,8 +1,8 @@
-import { vec2 } from 'gl-matrix'
+import { vec2, vec4 } from 'gl-matrix'
 import { Debug_DrawLine } from '../Debug_LineDrawingSystem'
 
 export type QuadTree<T> = {
-    debugDraw: () => void
+    debugDraw: (cursor?: vec2, visit?: (x: T) => void) => void
     insert: (
         item: T,
         x: number,
@@ -22,6 +22,7 @@ export function createQuadTree<T>(
     type DividedQuadTreeNode = {
         divided: true
         children: [QuadTreeNode, QuadTreeNode, QuadTreeNode, QuadTreeNode]
+        mid: vec2
     }
     type UndividedQuadTreeNode = {
         items: T[]
@@ -115,23 +116,38 @@ export function createQuadTree<T>(
         nodeY: number,
         nodeWidth: number,
         nodeHeight: number,
-        itemX: number,
-        itemY: number,
-        itemWidth: number,
-        itemHeight: number
+        itemMinX: number,
+        itemMinY: number,
+        itemMaxX: number,
+        itemMaxY: number
     ): void {
         if (!node.divided) {
             if (depth < maxDepth && node.items.length > maxItems - 1) {
-                divideNode(
-                    node,
-                    nodeX + nodeWidth / 2.0,
-                    nodeY + nodeHeight / 2.0
-                )
+                const midX =
+                    node.items
+                        .map(
+                            (_, idx) =>
+                                (node.itemInfo[idx * 4] +
+                                    node.itemInfo[idx * 4 + 2]) *
+                                0.5
+                        )
+                        .reduce((a, b) => a + b, 0) / node.items.length
+                const midY =
+                    node.items
+                        .map(
+                            (_, idx) =>
+                                (node.itemInfo[idx * 4 + 1] +
+                                    node.itemInfo[idx * 4 + 3]) *
+                                0.5
+                        )
+                        .reduce((a, b) => a + b, 0) / node.items.length
+                divideNode(node, midX, midY)
+                ;(node as any).mid = vec2.fromValues(midX, midY)
             } else {
-                node.itemInfo[node.items.length * 4] = itemX
-                node.itemInfo[node.items.length * 4 + 1] = itemY
-                node.itemInfo[node.items.length * 4 + 2] = itemWidth
-                node.itemInfo[node.items.length * 4 + 3] = itemHeight
+                node.itemInfo[node.items.length * 4] = itemMinX
+                node.itemInfo[node.items.length * 4 + 1] = itemMinY
+                node.itemInfo[node.items.length * 4 + 2] = itemMaxX
+                node.itemInfo[node.items.length * 4 + 3] = itemMaxY
                 node.items.push(item)
                 return
             }
@@ -139,71 +155,69 @@ export function createQuadTree<T>(
         if (!node.divided) {
             throw new Error('not possible')
         }
-        const halfWidth = nodeWidth / 2.0
-        const halfHeight = nodeHeight / 2.0
-        const midX = nodeX + halfWidth
-        const midY = nodeY + halfHeight
-        if (itemX < midX) {
-            if (itemY < midY) {
+        const midX = node.mid[0]
+        const midY = node.mid[1]
+        if (itemMinX < midX) {
+            if (itemMinY < midY) {
                 insertIntoNode(
                     node.children[0],
                     depth + 1,
                     item,
                     nodeX,
                     nodeY,
-                    halfWidth,
-                    halfHeight,
-                    itemX,
-                    itemY,
-                    itemWidth,
-                    itemHeight
+                    midX - nodeX,
+                    midY - nodeY,
+                    itemMinX,
+                    itemMinY,
+                    itemMaxX,
+                    itemMaxY
                 )
             }
-            if (itemY + itemHeight > midY) {
+            if (itemMaxY > midY) {
                 insertIntoNode(
                     node.children[3],
                     depth + 1,
                     item,
                     nodeX,
-                    nodeY + halfHeight,
-                    halfWidth,
-                    halfHeight,
-                    itemX,
-                    itemY,
-                    itemWidth,
-                    itemHeight
+                    midY,
+                    midX - nodeX,
+                    nodeY + nodeHeight - midY,
+                    itemMinX,
+                    itemMinY,
+                    itemMaxX,
+                    itemMaxY
                 )
             }
         }
-        if (itemX + itemWidth > midX) {
-            if (itemY < midY) {
+        if (itemMaxX > midX) {
+            if (itemMinY < midY) {
                 insertIntoNode(
                     node.children[1],
                     depth + 1,
                     item,
-                    nodeX + halfWidth,
+                    midX,
                     nodeY,
-                    halfWidth,
-                    halfHeight,
-                    itemX,
-                    itemY,
-                    itemWidth,
-                    itemHeight
+                    nodeX + nodeWidth - midX,
+                    midY - nodeY,
+                    itemMinX,
+                    itemMinY,
+                    itemMaxX,
+                    itemMaxY
                 )
             }
-            if (itemY + itemHeight > midY) {
+            if (itemMaxY > midY) {
                 insertIntoNode(
                     node.children[2],
                     depth + 1,
                     item,
-                    nodeX + halfWidth,
-                    nodeY + halfHeight,
-                    halfWidth,
-                    halfHeight,
-                    itemX,
-                    itemY,
-                    itemWidth,
-                    itemHeight
+                    midX,
+                    midY,
+                    nodeX + nodeWidth - midX,
+                    nodeY + nodeHeight - midY,
+                    itemMinX,
+                    itemMinY,
+                    itemMaxX,
+                    itemMaxY
                 )
             }
         }
@@ -215,30 +229,24 @@ export function createQuadTree<T>(
         nodeY: number,
         nodeWidth: number,
         nodeHeight: number,
-        queryX: number,
-        queryY: number,
-        queryWidth: number,
-        queryHeight: number,
+        queryMinX: number,
+        queryMinY: number,
+        queryMaxX: number,
+        queryMaxY: number,
         dataOut: T[]
     ) {
         if (!node.divided) {
             const items = node.items.filter((_, idx) => {
-                if (
-                    node.itemInfo[idx * 4] + node.itemInfo[idx * 4 + 2] <=
-                    queryX
-                ) {
+                if (node.itemInfo[idx * 4 + 2] <= queryMinX) {
                     return false
                 }
-                if (node.itemInfo[idx * 4] >= queryX + queryWidth) {
+                if (node.itemInfo[idx * 4] >= queryMaxX) {
                     return false
                 }
-                if (
-                    node.itemInfo[idx * 4 + 1] + node.itemInfo[idx * 4 + 3] <=
-                    queryY
-                ) {
+                if (node.itemInfo[idx * 4 + 3] <= queryMinY) {
                     return false
                 }
-                if (node.itemInfo[idx * 4 + 1] >= queryY + queryHeight) {
+                if (node.itemInfo[idx * 4 + 1] >= queryMaxY) {
                     return false
                 }
                 return true
@@ -246,66 +254,64 @@ export function createQuadTree<T>(
             items.forEach((x) => dataOut.push(x))
             return
         }
-        const halfWidth = nodeWidth / 2.0
-        const halfHeight = nodeHeight / 2.0
-        const midX = nodeX + halfWidth
-        const midY = nodeY + halfHeight
-        if (queryX < midX) {
-            if (queryY < midY) {
+        const midX = node.mid[0]
+        const midY = node.mid[1]
+        if (queryMinX < midX) {
+            if (queryMinY < midY) {
                 queryFromNode(
                     node.children[0],
                     nodeX,
                     nodeY,
-                    halfWidth,
-                    halfHeight,
-                    queryX,
-                    queryY,
-                    queryWidth,
-                    queryHeight,
+                    midX - nodeX,
+                    midY - nodeY,
+                    queryMinX,
+                    queryMinY,
+                    queryMaxX,
+                    queryMaxY,
                     dataOut
                 )
             }
-            if (queryY + queryHeight > midY) {
+            if (queryMaxY > midY) {
                 queryFromNode(
                     node.children[3],
                     nodeX,
-                    nodeY + halfHeight,
-                    halfWidth,
-                    halfHeight,
-                    queryX,
-                    queryY,
-                    queryWidth,
-                    queryHeight,
+                    midY,
+                    midX - nodeX,
+                    nodeY + nodeHeight - midY,
+                    queryMinX,
+                    queryMinY,
+                    queryMaxX,
+                    queryMaxY,
                     dataOut
                 )
             }
         }
-        if (queryX + queryWidth > midX) {
-            if (queryY < midY) {
+        if (queryMaxX > midX) {
+            if (queryMinY < midY) {
                 queryFromNode(
                     node.children[1],
-                    nodeX + halfWidth,
+                    midX,
                     nodeY,
-                    halfWidth,
-                    halfHeight,
-                    queryX,
-                    queryY,
-                    queryWidth,
-                    queryHeight,
+                    nodeX + nodeWidth - midX,
+                    midY - nodeY,
+                    queryMinX,
+                    queryMinY,
+                    queryMaxX,
+                    queryMaxY,
                     dataOut
                 )
             }
-            if (queryY + queryHeight > midY) {
+            if (queryMaxY > midY) {
                 queryFromNode(
                     node.children[2],
-                    nodeX + halfWidth,
-                    nodeY + halfHeight,
-                    halfWidth,
-                    halfHeight,
-                    queryX,
-                    queryY,
-                    queryWidth,
-                    queryHeight,
+                    midX,
+                    midY,
+                    nodeX + nodeWidth - midX,
+                    nodeY + nodeHeight - midY,
+                    queryMinX,
+                    queryMinY,
+                    queryMaxX,
+                    queryMaxY,
                     dataOut
                 )
             }
@@ -317,39 +323,99 @@ export function createQuadTree<T>(
         x: number,
         y: number,
         width: number,
-        height: number
+        height: number,
+        cursor?: vec2,
+        visit?: (x: T) => void
     ) {
         if (!node.divided) {
+            if (cursor) {
+                if (
+                    cursor[0] > x &&
+                    cursor[0] < x + width &&
+                    cursor[1] > y &&
+                    cursor[1] < y + height
+                ) {
+                    node.items.forEach((_x, idx) => {
+                        const color = vec4.fromValues(0, 0, 1, 1)
+                        const v: [number, number][] = [
+                            [
+                                node.itemInfo[idx * 4],
+                                node.itemInfo[idx * 4 + 1],
+                            ],
+                            [
+                                node.itemInfo[idx * 4 + 2],
+                                node.itemInfo[idx * 4 + 1],
+                            ],
+                            [
+                                node.itemInfo[idx * 4 + 2],
+                                node.itemInfo[idx * 4 + 3],
+                            ],
+                            [
+                                node.itemInfo[idx * 4],
+                                node.itemInfo[idx * 4 + 3],
+                            ],
+                        ]
+                        Debug_DrawLine(v[0], v[1], color)
+                        Debug_DrawLine(v[1], v[2], color)
+                        Debug_DrawLine(v[2], v[3], color)
+                        Debug_DrawLine(v[3], v[0], color)
+                    })
+                    // console.log(node.items)
+                    const v: [number, number][] = [
+                        [x, y],
+                        [x + width, y],
+                        [x + width, y + height],
+                        [x, y + height],
+                    ]
+                    Debug_DrawLine(v[0], v[1], [1, 0, 0, 1])
+                    Debug_DrawLine(v[1], v[2], [1, 0, 0, 1])
+                    Debug_DrawLine(v[2], v[3], [1, 0, 0, 1])
+                    Debug_DrawLine(v[3], v[0], [1, 0, 0, 1])
+                }
+            }
             return
         }
-        const halfWidth = width / 2.0
-        const halfHeight = height / 2.0
+
+        const midX = node.mid[0]
+        const midY = node.mid[1]
         Debug_DrawLine(
-            vec2.fromValues(x, y + halfHeight),
-            vec2.fromValues(x + width, y + halfHeight),
+            vec2.fromValues(x, midY),
+            vec2.fromValues(x + width, midY),
             [0, 1, 0, 0.8]
         )
         Debug_DrawLine(
-            vec2.fromValues(x + halfWidth, y),
-            vec2.fromValues(x + halfWidth, y + height),
+            vec2.fromValues(midX, y),
+            vec2.fromValues(midX, y + height),
             [0, 1, 0, 0.8]
         )
 
-        debugDrawNode(node.children[0], x, y, halfWidth, halfHeight)
-        debugDrawNode(node.children[1], x + halfWidth, y, halfWidth, halfHeight)
+        debugDrawNode(node.children[0], x, y, midX - x, midY - y, cursor, visit)
+        debugDrawNode(
+            node.children[1],
+            midX,
+            y,
+            x + width - midX,
+            midY - y,
+            cursor,
+            visit
+        )
         debugDrawNode(
             node.children[2],
-            x + halfWidth,
-            y + halfHeight,
-            halfWidth,
-            halfHeight
+            midX,
+            midY,
+            x + width - midX,
+            y + height - midY,
+            cursor,
+            visit
         )
         debugDrawNode(
             node.children[3],
             x,
-            y + halfHeight,
-            halfWidth,
-            halfHeight
+            midY,
+            midX - x,
+            y + height - midY,
+            cursor,
+            visit
         )
     }
 
@@ -390,7 +456,15 @@ export function createQuadTree<T>(
             )
             return dataOut
         },
-        debugDraw: () =>
-            debugDrawNode(root, start[0], start[1], size[0], size[1]),
+        debugDraw: (cursor?: vec2, visit?: (x: T) => void) =>
+            debugDrawNode(
+                root,
+                start[0],
+                start[1],
+                size[0],
+                size[1],
+                cursor,
+                visit
+            ),
     }
 }

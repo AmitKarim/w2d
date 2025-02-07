@@ -13,6 +13,32 @@ export let Bullet_Polygon = new Float32Array(MAX_BULLETS * 8)
 
 export let NumBullets = 0
 
+export function removeBullet(bullet: number) {
+    if (NumBullets == 0) {
+        throw Error('wtf')
+    }
+    const lastIdx = NumBullets - 1
+    Bullet_Pos[bullet * 2] = Bullet_Pos[lastIdx * 2]
+    Bullet_Pos[bullet * 2 + 1] = Bullet_Pos[lastIdx * 2 + 1]
+    Bullet_Vel[bullet * 2] = Bullet_Vel[lastIdx * 2]
+    Bullet_Vel[bullet * 2 + 1] = Bullet_Vel[lastIdx * 2 + 1]
+    Bullet_Normal[bullet * 2] = Bullet_Normal[lastIdx * 2]
+    Bullet_Normal[bullet * 2 + 1] = Bullet_Normal[lastIdx * 2 + 1]
+    Bullet_Length[bullet] = Bullet_Length[lastIdx]
+    Bullet_AABB[bullet * 4] = Bullet_AABB[lastIdx * 4]
+    Bullet_AABB[bullet * 4 + 1] = Bullet_AABB[lastIdx * 4 + 1]
+    Bullet_AABB[bullet * 4 + 2] = Bullet_AABB[lastIdx * 4 + 2]
+    Bullet_AABB[bullet * 4 + 3] = Bullet_AABB[lastIdx * 4 + 3]
+    Bullet_Polygon[bullet * 8 + 0] = Bullet_Polygon[lastIdx * 8 + 0]
+    Bullet_Polygon[bullet * 8 + 1] = Bullet_Polygon[lastIdx * 8 + 1]
+    Bullet_Polygon[bullet * 8 + 2] = Bullet_Polygon[lastIdx * 8 + 2]
+    Bullet_Polygon[bullet * 8 + 3] = Bullet_Polygon[lastIdx * 8 + 3]
+    Bullet_Polygon[bullet * 8 + 4] = Bullet_Polygon[lastIdx * 8 + 4]
+    Bullet_Polygon[bullet * 8 + 5] = Bullet_Polygon[lastIdx * 8 + 5]
+    Bullet_Polygon[bullet * 8 + 6] = Bullet_Polygon[lastIdx * 8 + 6]
+    Bullet_Polygon[bullet * 8 + 7] = Bullet_Polygon[lastIdx * 8 + 7]
+    --NumBullets
+}
 function addBullet(x: number, y: number, v_x: number, v_y: number) {
     if (NumBullets == MAX_BULLETS) {
         return
