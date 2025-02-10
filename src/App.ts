@@ -24,15 +24,17 @@ async function main() {
     const player = addEntity(world)
     addComponent(world, world.components.Position, player)
 
-    spawnDiamondSquare(
-        {
-            pos: [32, 12],
-            angle: 0,
-            health: 100,
-            color: [120, 0, 0],
-        },
-        world
-    )
+    for (let i = 0; i < 5; ++i) {
+        spawnDiamondSquare(
+            {
+                pos: [Math.random() * 500, Math.random() * 500],
+                angle: 0,
+                health: 100,
+                color: [120, 0, 0],
+            },
+            world
+        )
+    }
 
     const renderScene = await createRenderFunc(world, player)
     const updatePlayer = createPlayerController(world, player, canvas)

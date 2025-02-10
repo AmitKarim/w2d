@@ -18,11 +18,14 @@ export function spawnDiamondSquare(
     world: World
 ): number {
     const entityID = addEntity(world)
-    const Enemy = world.components.Enemy
+    const { Enemy, Position, Health } = world.components
     addComponent(world, Enemy, entityID)
+    addComponent(world, Position, entityID)
+    Position.pos[entityID][0] = params.pos[0]
+    Position.pos[entityID][1] = params.pos[1]
 
-    addComponent(world, world.components.Health, entityID)
-    world.components.Health.health[entityID] = params.health
+    addComponent(world, Health, entityID)
+    Health.health[entityID] = params.health
 
     const e1 = addEntity(world)
     const e2 = addEntity(world)
@@ -43,6 +46,11 @@ export function spawnDiamondSquare(
     addComponent(world, Diamond, e2)
     addComponent(world, Diamond, e3)
     addComponent(world, Diamond, e4)
+
+    addComponent(world, Position, e1)
+    addComponent(world, Position, e2)
+    addComponent(world, Position, e3)
+    addComponent(world, Position, e4)
 
     addComponent(world, Parent, e1)
     addComponent(world, Parent, e2)

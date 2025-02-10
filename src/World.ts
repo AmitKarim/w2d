@@ -30,8 +30,8 @@ export enum EnemyType {
 export type World = {
     components: {
         Position: ComponentType<{
-            pos: ['f32', 3]
-            vel: ['f32', 3]
+            pos: ['f32', 2]
+            vel: ['f32', 2]
             angle: 'f32'
             angularVelocity: 'f32'
         }>
@@ -63,8 +63,8 @@ export function createWorldData(
     return {
         components: {
             Position: defineComponent({
-                pos: [Types.f32, 3],
-                vel: [Types.f32, 3],
+                pos: [Types.f32, 2],
+                vel: [Types.f32, 2],
                 angle: Types.f32,
                 angularVelocity: Types.f32,
             }),

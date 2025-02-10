@@ -1,7 +1,7 @@
 import { World } from '../World'
 import { ShapeGeometry, Shapes, ShapeType } from '../engine/Shapes'
 import { vec2, vec4 } from 'gl-matrix'
-import { defineQuery, Query } from 'bitecs'
+import { defineQuery, hasComponent, Query } from 'bitecs'
 import { checkCollision } from '../engine/collision/SATCollision'
 import { createQuadTree } from '../engine/collision/QuadTree'
 import {
@@ -80,21 +80,21 @@ export function createCollisionSystem(world: World, _player: number) {
             Debug_DrawLine(v[3], v[0], color)
         }
 
-        bulletTree.debugDraw(
-            [
-                world.render.cameraPos[0] + world.player.mouseX,
-                world.render.cameraPos[1] + world.player.mouseY,
-            ],
-            (x: number) =>
-                drawAABB(
-                    [...Bullet_AABB.slice(x * 4, (x + 1) * 4)],
-                    vec4.fromValues(0, 0, 1, 1)
-                )
-        )
+        // bulletTree.debugDraw(
+        //     [
+        //         world.render.cameraPos[0] + world.player.mouseX,
+        //         world.render.cameraPos[1] + world.player.mouseY,
+        //     ],
+        //     (x: number) =>
+        //         drawAABB(
+        //             [...Bullet_AABB.slice(x * 4, (x + 1) * 4)],
+        //             vec4.fromValues(0, 0, 1, 1)
+        //         )
+        // )
 
         // const playerAABB = computeAABB(playerShape)
 
-        const enemyShapes: vec2[][][] = []
+        const enemyShapes: [number, vec2[][]][] = []
 
         for (const shape of Shapes) {
             if (shape === 'player') {
@@ -102,22 +102,24 @@ export function createCollisionSystem(world: World, _player: number) {
             }
             const entities = shapeQueries[shape](world)
             for (const e of entities) {
-                enemyShapes.push(
+                enemyShapes.push([
+                    e,
                     transformShape(
                         world.components.Position.pos[e],
                         world.components.Position.angle[e],
                         ShapeGeometry[shape].collision
-                    )
-                )
+                    ),
+                ])
             }
         }
 
-        const debug_color = vec4.fromValues(1, 1, 0, 1)
+        // const debug_color = vec4.fromValues(1, 1, 0, 1)
         let bulletsToDelete = new Set<number>()
 
-        for (const enemy of enemyShapes) {
+        enemyShapes.forEach((enemyEntry) => {
+            const [enemyID, enemy] = enemyEntry
             const aabb = computeAABB(enemy)
-            drawAABB(aabb, debug_color)
+            // drawAABB(aabb, debug_color)
             const bullets = bulletTree.query(
                 aabb[0],
                 aabb[1],
@@ -165,10 +167,29 @@ export function createCollisionSystem(world: World, _player: number) {
                             lifeTime: 2.0,
                         })
                         bulletsToDelete.add(bullets[bulletIdx])
+                        let id = enemyID
+                        while (true) {
+                            if (
+                                hasComponent(world, world.components.Health, id)
+                            ) {
+                                world.components.Health.health[id] -= 50
+                                break
+                            }
+                            if (
+                                !hasComponent(
+                                    world,
+                                    world.components.Parent,
+                                    id
+                                )
+                            ) {
+                                break
+                            }
+                            id = world.components.Parent.parent[id]
+                        }
                     }
                 }
             }
-        }
+        })
         for (const bullet of bulletsToDelete.keys()) {
             removeBullet(bullet)
         }

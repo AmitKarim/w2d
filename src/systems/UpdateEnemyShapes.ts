@@ -1,11 +1,11 @@
-import { defineQuery, enterQuery, exitQuery } from 'bitecs'
+import { defineQuery, enterQuery, exitQuery, removeEntity } from 'bitecs'
 import { EnemyType, World } from '../World'
 import { mat3, vec2 } from 'gl-matrix'
+import { createNewParticleExplosion } from '../engine/rendering/ParticleRendering'
 
 const createDiamondSquareUpdate = (world: World, player: number) => {
     const DIAMOND_SQUARE_OFFSET = 12
-    const Position = world.components.Position
-    const Enemy = world.components.Enemy
+    const { Position, Enemy, Health } = world.components
 
     const offset = vec2.create()
     const childPos = vec2.create()
@@ -13,6 +13,18 @@ const createDiamondSquareUpdate = (world: World, player: number) => {
 
     const toPlayer = vec2.create()
     return (e: number) => {
+        if (Health.health[e] <= 0) {
+            createNewParticleExplosion({
+                position: [Position.pos[e][0], Position.pos[e][1]],
+                lifeTime: 3.0,
+                size: 4,
+            })
+            removeEntity(world, Enemy.shapes[e][0])
+            removeEntity(world, Enemy.shapes[e][1])
+            removeEntity(world, Enemy.shapes[e][2])
+            removeEntity(world, Enemy.shapes[e][3])
+            removeEntity(world, e)
+        }
         mat3.fromRotation(rotation, Position.angle[e])
         const e1 = Enemy.shapes[e][0]
         const e2 = Enemy.shapes[e][1]
@@ -76,9 +88,6 @@ export function createEnemyShapeUpdater(
 
         // Factory behavior for new entities
         enemiesAdded(world).forEach((x) => {
-            if (x != 1) {
-                throw Error('Invalid')
-            }
             const update = EnemyMap[1]
             behaviorUpdates.set(x, () => update(x))
         })

@@ -173,16 +173,7 @@ export function createParticleRenderer(
     let updateVOA1 = createVertexArray(buffer1)
     let updateVOA2 = createVertexArray(buffer2)
 
-    let first = true
     return () => {
-        if (first) {
-            first = false
-            createNewParticleExplosion({
-                position: vec2.fromValues(200, 200),
-                size: 1,
-                lifeTime: 2.0,
-            })
-        }
         // By convention we are always rendering from 1 to 2
 
         // First identify if any particle systems have expired
