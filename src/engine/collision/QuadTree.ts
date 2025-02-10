@@ -450,8 +450,8 @@ export function createQuadTree<T>(
                 size[1],
                 x,
                 y,
-                width,
-                height,
+                x + width,
+                y + height,
                 dataOut
             )
             return dataOut
