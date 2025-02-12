@@ -6,6 +6,7 @@ export function createCameraSystem(world: World, player: number) {
     const cameraPos: [number, number] = [0, 0]
     const cameraVel: [number, number] = [0, 0]
     return () => {
+        return
         const playerPos = world.components.Position.pos[player]
         criticalSpring2D(
             cameraPos,

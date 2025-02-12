@@ -14,7 +14,7 @@ import {
 import { createNewParticleExplosion } from '../engine/rendering/ParticleRendering'
 import { Debug_DrawLine } from '../engine/Debug_LineDrawingSystem'
 
-export function createCollisionSystem(world: World, _player: number) {
+export function createCollisionSystem(world: World, player: number) {
     const shapeQueries: Record<Exclude<ShapeType, 'player'>, Query<World>> = {
         crossed_diamond: defineQuery([world.components.Shapes.CrossedDiamond]),
         diamond: defineQuery([world.components.Shapes.Diamond]),
@@ -46,11 +46,11 @@ export function createCollisionSystem(world: World, _player: number) {
     }
 
     return () => {
-        // const playerShape: vec2[][] = transformShape(
-        //     world.components.Position.pos[player],
-        //     world.components.Position.angle[player],
-        //     ShapeGeometry['player'].collision
-        // )
+        const playerShape: vec2[][] = transformShape(
+            world.components.Position.pos[player],
+            world.components.Position.angle[player],
+            ShapeGeometry['player'].collision
+        )
         const bulletTree = createQuadTree<number>(
             vec2.fromValues(-1000, -1000),
             vec2.fromValues(2000, 2000),
@@ -92,7 +92,7 @@ export function createCollisionSystem(world: World, _player: number) {
         //         )
         // )
 
-        // const playerAABB = computeAABB(playerShape)
+        const playerAABB = computeAABB(playerShape)
 
         const enemyShapes: [number, vec2[][]][] = []
 
@@ -119,6 +119,29 @@ export function createCollisionSystem(world: World, _player: number) {
         enemyShapes.forEach((enemyEntry) => {
             const [enemyID, enemy] = enemyEntry
             const aabb = computeAABB(enemy)
+
+            // check against player
+            if (
+                aabb[0] <= playerAABB[2] &&
+                aabb[2] >= playerAABB[0] &&
+                aabb[1] <= playerAABB[3] &&
+                aabb[3] >= playerAABB[1]
+            ) {
+                if (
+                    enemy.some((x) => {
+                        return playerShape.some((y) => checkCollision(x, y))
+                    })
+                ) {
+                    createNewParticleExplosion({
+                        position: vec2.fromValues(
+                            world.components.Position.pos[player][0],
+                            world.components.Position.pos[player][1]
+                        ),
+                        size: 1,
+                        lifeTime: 10,
+                    })
+                }
+            }
             // drawAABB(aabb, debug_color)
             const bullets = bulletTree.query(
                 aabb[0],
@@ -172,7 +195,7 @@ export function createCollisionSystem(world: World, _player: number) {
                             if (
                                 hasComponent(world, world.components.Health, id)
                             ) {
-                                world.components.Health.health[id] -= 50
+                                world.components.Health.health[id] -= 10
                                 break
                             }
                             if (

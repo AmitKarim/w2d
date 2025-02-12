@@ -19,7 +19,7 @@ export function createPlayerWorldData(): PlayerData {
         mouseY: 0,
         controls: {
             weapon_type: 'bullets',
-            firing_rate: 2.0,
+            firing_rate: 0.1,
             projectile_speed: 500.0,
         },
     }

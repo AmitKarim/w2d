@@ -36,7 +36,7 @@ const createDiamondSquareUpdate = (world: World, player: number) => {
         toPlayer[0] = Position.pos[player][0] - Position.pos[e][0]
         toPlayer[1] = Position.pos[player][1] - Position.pos[e][1]
         vec2.normalize(toPlayer, toPlayer)
-        vec2.scale(toPlayer, toPlayer, world.time.delta * 50)
+        vec2.scale(toPlayer, toPlayer, world.time.delta * 100)
         Position.pos[e][0] += toPlayer[0]
         Position.pos[e][1] += toPlayer[1]
 
